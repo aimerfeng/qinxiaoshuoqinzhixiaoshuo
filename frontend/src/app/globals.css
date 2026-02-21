@@ -1,0 +1,297 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* 星空幻想主题 (默认 - Light Mode) */
+  :root {
+    /* Primary colors */
+    --color-primary: #6366f1;
+    --color-primary-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+
+    /* Accent colors */
+    --color-accent-pink: #f472b6;
+    --color-accent-green: #34d399;
+    --color-accent-gold: #fbbf24;
+    --color-accent-red: #ef4444;
+
+    /* Background */
+    --background: #fafbff;
+    --background-secondary: #f3f4f6;
+
+    /* Foreground */
+    --foreground: #1f2937;
+    --foreground-secondary: #6b7280;
+    --foreground-muted: #9ca3af;
+
+    /* Card */
+    --card: #ffffff;
+    --card-foreground: #1f2937;
+
+    /* Muted */
+    --muted: #f3f4f6;
+    --muted-foreground: #6b7280;
+
+    /* Border */
+    --border: #e5e7eb;
+
+    /* Input */
+    --input: #e5e7eb;
+
+    /* Ring */
+    --ring: #6366f1;
+
+    /* Shadows */
+    --shadow-card: 0 4px 6px rgba(99, 102, 241, 0.1);
+    --shadow-hover: 0 8px 25px rgba(99, 102, 241, 0.15);
+    --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+
+    /* Border radius */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+  }
+
+  /* 深夜模式 (Dark Mode) */
+  .dark {
+    --background: #0f172a;
+    --background-secondary: #1e293b;
+
+    --foreground: #f1f5f9;
+    --foreground-secondary: #94a3b8;
+    --foreground-muted: #64748b;
+
+    --card: #1e293b;
+    --card-foreground: #f1f5f9;
+
+    --muted: #334155;
+    --muted-foreground: #94a3b8;
+
+    --border: #334155;
+
+    --input: #334155;
+
+    --ring: #818cf8;
+
+    --shadow-card: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.4);
+    --shadow-glow: 0 0 20px rgba(129, 140, 248, 0.3);
+  }
+
+  /* 樱花物语主题 */
+  [data-theme='sakura'] {
+    --color-primary: #ec4899;
+    --color-primary-gradient: linear-gradient(135deg, #f472b6, #ec4899);
+    --background: #fff5f7;
+    --background-secondary: #fce7f3;
+    --card: #ffffff;
+    --border: #fbcfe8;
+    --ring: #ec4899;
+  }
+
+  /* 赛博朋克主题 */
+  [data-theme='cyberpunk'] {
+    --color-primary: #06b6d4;
+    --color-primary-gradient: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    --background: #0a0a0a;
+    --background-secondary: #171717;
+    --foreground: #00ff9f;
+    --foreground-secondary: #06b6d4;
+    --card: #1a1a2e;
+    --border: #16213e;
+    --ring: #06b6d4;
+  }
+
+  /* 古风水墨主题 */
+  [data-theme='ink'] {
+    --color-primary: #78716c;
+    --color-primary-gradient: linear-gradient(135deg, #78716c, #57534e);
+    --background: #faf9f7;
+    --background-secondary: #f5f5f4;
+    --foreground: #292524;
+    --foreground-secondary: #57534e;
+    --card: #ffffff;
+    --border: #d6d3d1;
+    --ring: #78716c;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Focus visible styles */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Selection styles */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+@layer components {
+  /* Card component */
+  .card {
+    @apply rounded-lg border border-border bg-card text-card-foreground shadow-card;
+  }
+
+  .card-hover {
+    @apply transition-shadow duration-200 hover:shadow-card-hover;
+  }
+
+  /* Button base styles */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-primary text-white hover:opacity-90;
+  }
+
+  .btn-secondary {
+    @apply hover:bg-muted/80 bg-muted text-foreground;
+  }
+
+  .btn-outline {
+    @apply border border-border bg-transparent hover:bg-muted;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-muted;
+  }
+
+  /* Input base styles */
+  .input {
+    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-primary {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .badge-secondary {
+    @apply bg-secondary/10 text-secondary-600;
+  }
+
+  .badge-success {
+    @apply bg-accent-green/10 text-accent-green-dark;
+  }
+
+  .badge-warning {
+    @apply bg-accent-gold/10 text-accent-gold-dark;
+  }
+
+  .badge-error {
+    @apply bg-accent-red/10 text-accent-red-dark;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse rounded-md bg-muted;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+
+  /* Glow effect */
+  .glow {
+    @apply shadow-glow;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 3px;
+  }
+
+  /* Text balance */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Line clamp utilities */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Safe area padding for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
+  }
+}
