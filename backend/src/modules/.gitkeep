@@ -1,0 +1,10 @@
+# Modules directory - feature modules will be added here
+# Planned modules:
+# - auth: User authentication and authorization
+# - users: User management
+# - works: Work/novel management
+# - chapters: Chapter management
+# - plaza: Social feed (Cards)
+# - anchors: Paragraph anchor system
+# - notifications: Real-time notifications
+# - search: Content search

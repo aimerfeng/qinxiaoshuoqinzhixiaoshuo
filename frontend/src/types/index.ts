@@ -5,13 +5,25 @@ export interface User {
   id: string;
   email: string;
   username: string;
-  displayName: string;
-  avatar?: string;
-  bio?: string;
+  displayName: string | null;
+  avatar?: string | null;
+  bio?: string | null;
   membershipLevel: MembershipLevel;
+  isEmailVerified?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  profile?: UserProfile | null;
 }
+
+export interface UserProfile {
+  backgroundImage?: string | null;
+  website?: string | null;
+  location?: string | null;
+  birthday?: string | null;
+  gender?: Gender | null;
+}
+
+export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY';
 
 export type MembershipLevel = 'regular' | 'official' | 'senior' | 'honor';
 
@@ -103,3 +115,12 @@ export interface PaginationParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
+
+// Re-export plaza types
+export * from './plaza';
+
+// Re-export membership types
+export * from './membership';
+
+// Re-export user types
+export * from './user';

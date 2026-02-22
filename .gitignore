@@ -47,3 +47,8 @@ next-env.d.ts
 .vscode/
 *.swp
 *.swo
+
+# Docker
+docker/postgres/data/
+docker/redis/data/
+docker/minio/data/

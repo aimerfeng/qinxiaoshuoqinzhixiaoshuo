@@ -1,0 +1,46 @@
+# ===========================================
+# Docker Ignore File
+# ===========================================
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/dist
+**/.next
+
+# Environment files (use docker-compose environment instead)
+.env
+**/.env
+!**/.env.example
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage
+
+# Kiro specs (not needed in containers)
+.kiro
+
+# Documentation
+docs
+*.md
+!README.md

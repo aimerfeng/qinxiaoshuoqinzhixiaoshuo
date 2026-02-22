@@ -1,0 +1,112 @@
+# ===========================================
+# Project Anima - Local Development Environment
+# ===========================================
+# Docker Compose configuration for local development
+# Services: PostgreSQL 15, Redis 7, MinIO (S3-compatible storage)
+#
+# Usage:
+#   Start all services:  docker-compose up -d
+#   Stop all services:   docker-compose down
+#   View logs:           docker-compose logs -f [service_name]
+#   Reset data:          docker-compose down -v
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # PostgreSQL 15 Database with pgvector
+  # ===========================================
+  # Using pgvector/pgvector image for vector similarity search support
+  # Required for semantic search and AI recommendation features (Phase 3)
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: project-anima-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: project_anima
+      # Performance tuning for development
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: Custom initialization scripts
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d project_anima"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - project-anima-network
+
+  # ===========================================
+  # Redis 7 Cache & Session Store
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: project-anima-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - project-anima-network
+
+  # ===========================================
+  # MinIO S3-Compatible Object Storage
+  # ===========================================
+  minio:
+    image: minio/minio:latest
+    container_name: project-anima-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10s
+    networks:
+      - project-anima-network
+
+# ===========================================
+# Persistent Volumes
+# ===========================================
+volumes:
+  postgres_data:
+    driver: local
+    name: project-anima-postgres-data
+  redis_data:
+    driver: local
+    name: project-anima-redis-data
+  minio_data:
+    driver: local
+    name: project-anima-minio-data
+
+# ===========================================
+# Network Configuration
+# ===========================================
+networks:
+  project-anima-network:
+    driver: bridge
+    name: project-anima-network

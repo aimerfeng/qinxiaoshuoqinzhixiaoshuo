@@ -1,0 +1,906 @@
+// This is your Prisma schema file for Project Anima
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [uuid_ossp(map: "uuid-ossp"), vector]
+}
+
+// ==================== User & Authentication ====================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  username        String    @unique
+  passwordHash    String    @map("password_hash")
+  displayName     String?   @map("display_name")
+  avatar          String?
+  bio             String?
+  isEmailVerified Boolean   @default(false) @map("is_email_verified")
+  isActive        Boolean   @default(true) @map("is_active")
+  isAdmin         Boolean   @default(false) @map("is_admin") // 管理员标记
+  lastLoginAt     DateTime? @map("last_login_at")
+  loginAttempts   Int       @default(0) @map("login_attempts")
+  lockedUntil     DateTime? @map("locked_until")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // 会员等级相关字段
+  memberLevel       MemberLevel @default(REGULAR) @map("member_level")
+  contributionScore Int         @default(0) @map("contribution_score")
+
+  // Relations
+  profile             UserProfile?
+  followers           Follow[]    @relation("UserFollowing")  // 关注我的人
+  following           Follow[]    @relation("UserFollowers")  // 我关注的人
+  refreshTokens       RefreshToken[]
+  works               Work[]
+  chapters            Chapter[]
+  cards               Card[]
+  comments            Comment[]
+  likes               Like[]
+  readingProgress     ReadingProgress[]
+  readingSettings     ReadingSettings?
+  notifications       Notification[]
+  deviceFingerprints  DeviceFingerprint[]
+  danmakus            Danmaku[]
+  readingList         ReadingListItem[]
+  contributionRecords ContributionRecord[]
+  memberApplications  MemberApplication[]
+  wallet              Wallet?
+  createdActivities   Activity[]              @relation("ActivityCreator")
+  activityParticipations ActivityParticipation[]
+  activityRewards     ActivityReward[]
+
+  @@index([memberLevel])
+  @@map("users")
+}
+
+model UserProfile {
+  id              String    @id @default(uuid())
+  userId          String    @unique @map("user_id")
+  backgroundImage String?   @map("background_image")
+  website         String?
+  location        String?
+  birthday        DateTime?
+  gender          Gender?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  token      String   @unique
+  deviceInfo String?  @map("device_info")
+  ipAddress  String?  @map("ip_address")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model DeviceFingerprint {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  fingerprint String
+  userAgent   String?  @map("user_agent")
+  ipAddress   String?  @map("ip_address")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@map("device_fingerprints")
+}
+
+// ==================== Works & Chapters ====================
+
+model Work {
+  id          String      @id @default(uuid())
+  authorId    String      @map("author_id")
+  title       String
+  description String?
+  coverImage  String?     @map("cover_image")
+  status      WorkStatus  @default(DRAFT)
+  contentType ContentType @default(NOVEL)
+  wordCount   Int         @default(0) @map("word_count")
+  viewCount   Int         @default(0) @map("view_count")
+  likeCount   Int         @default(0) @map("like_count")
+  quoteCount  Int         @default(0) @map("quote_count")
+  isDeleted   Boolean     @default(false) @map("is_deleted")
+  publishedAt DateTime?   @map("published_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Manga-specific fields (漫画特有字段)
+  readingDirection ReadingDirection? @map("reading_direction") // 阅读方向：LTR(从左到右)/RTL(从右到左，日漫)
+  pageCount        Int               @default(0) @map("page_count") // 总页数（漫画用）
+
+  // Relations
+  author           User              @relation(fields: [authorId], references: [id])
+  chapters         Chapter[]
+  tags             WorkTag[]
+  readingListItems ReadingListItem[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([contentType])
+  @@map("works")
+}
+
+model Chapter {
+  id          String        @id @default(uuid())
+  workId      String        @map("work_id")
+  authorId    String        @map("author_id")
+  title       String
+  content     String
+  orderIndex  Int           @map("order_index")
+  wordCount   Int           @default(0) @map("word_count")
+  viewCount   Int           @default(0) @map("view_count")
+  status      ChapterStatus @default(DRAFT)
+  version     Int           @default(1)
+  publishedAt DateTime?     @map("published_at")
+  scheduledAt DateTime?     @map("scheduled_at")
+  isDeleted   Boolean       @default(false) @map("is_deleted")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  work            Work              @relation(fields: [workId], references: [id], onDelete: Cascade)
+  author          User              @relation(fields: [authorId], references: [id])
+  paragraphs      Paragraph[]
+  versions        ChapterVersion[]
+  readingProgress ReadingProgress[]
+  mangaPages      MangaPage[]
+
+  @@unique([workId, orderIndex])
+  @@index([workId])
+  @@index([scheduledAt])
+  @@map("chapters")
+}
+
+model ChapterVersion {
+  id        String   @id @default(uuid())
+  chapterId String   @map("chapter_id")
+  version   Int
+  title     String
+  content   String
+  wordCount Int      @map("word_count")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, version])
+  @@map("chapter_versions")
+}
+
+// ==================== Manga Pages ====================
+
+model MangaPage {
+  id           String   @id @default(uuid())
+  chapterId    String   @map("chapter_id")
+  imageUrl     String   @map("image_url")
+  thumbnailUrl String?  @map("thumbnail_url")
+  orderIndex   Int      @map("order_index")
+  width        Int? // 图片宽度（像素）
+  height       Int? // 图片高度（像素）
+  fileSize     Int?     @map("file_size") // 文件大小（字节）
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, orderIndex])
+  @@index([chapterId])
+  @@map("manga_pages")
+}
+
+// ==================== Paragraphs & Anchors ====================
+
+model Paragraph {
+  id          String   @id @default(uuid())
+  chapterId   String   @map("chapter_id")
+  anchorId    String   @unique @map("anchor_id") // Format: {work_id}:{chapter_id}:{paragraph_index}
+  content     String
+  contentHash String   @map("content_hash")
+  orderIndex  Int      @map("order_index")
+  quoteCount  Int      @default(0) @map("quote_count")
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  quotes  Quote[]
+
+  @@unique([chapterId, orderIndex])
+  @@index([anchorId])
+  @@map("paragraphs")
+}
+
+// ==================== Plaza & Social ====================
+
+model Card {
+  id           String   @id @default(uuid())
+  authorId     String   @map("author_id")
+  content      String
+  likeCount    Int      @default(0) @map("like_count")
+  commentCount Int      @default(0) @map("comment_count")
+  quoteCount   Int      @default(0) @map("quote_count")
+  hotScore     Float    @default(0) @map("hot_score")
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  author   User      @relation(fields: [authorId], references: [id])
+  quotes   Quote[]
+  comments Comment[]
+  likes    Like[]
+
+  @@index([authorId])
+  @@index([hotScore])
+  @@index([createdAt])
+  @@map("cards")
+}
+
+model Quote {
+  id              String   @id @default(uuid())
+  cardId          String   @map("card_id")
+  paragraphId     String   @map("paragraph_id")
+  originalContent String   @map("original_content") // Snapshot of content at quote time
+  contentUpdated  Boolean  @default(false) @map("content_updated")
+  contentDeleted  Boolean  @default(false) @map("content_deleted")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  paragraph Paragraph @relation(fields: [paragraphId], references: [id])
+
+  @@map("quotes")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  authorId  String   @map("author_id")
+  parentId  String?  @map("parent_id")
+  content   String
+  likeCount Int      @default(0) @map("like_count")
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  card    Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id])
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([cardId])
+  @@map("comments")
+}
+
+model Like {
+  id         String         @id @default(uuid())
+  userId     String         @map("user_id")
+  cardId     String?        @map("card_id")
+  targetType LikeTargetType @map("target_type")
+  targetId   String         @map("target_id")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card? @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@map("likes")
+}
+
+// ==================== Reading ====================
+
+model ReadingProgress {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  chapterId      String   @map("chapter_id")
+  paragraphIndex Int      @map("paragraph_index")
+  scrollPosition Float?   @map("scroll_position")
+  readPercentage Float    @default(0) @map("read_percentage")
+  lastReadAt     DateTime @default(now()) @map("last_read_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@map("reading_progress")
+}
+
+model ReadingSettings {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  fontSize        Int      @default(16) @map("font_size")
+  lineHeight      Float    @default(1.8) @map("line_height")
+  fontFamily      String   @default("system") @map("font_family")
+  backgroundColor String   @default("#ffffff") @map("background_color")
+  textColor       String   @default("#1f2937") @map("text_color")
+  pageMode        PageMode @default(SCROLL) @map("page_mode")
+  nightMode       Boolean  @default(false) @map("night_mode")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reading_settings")
+}
+
+// ==================== Tags ====================
+
+model Tag {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  usageCount  Int      @default(0) @map("usage_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  works WorkTag[]
+
+  @@map("tags")
+}
+
+model WorkTag {
+  workId    String   @map("work_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([workId, tagId])
+  @@map("work_tags")
+}
+
+// ==================== Notifications ====================
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  content   String
+  data      Json?
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ==================== Vector Embeddings (pgvector) ====================
+// Used for semantic search and AI-powered recommendations (Phase 3)
+
+model ContentEmbedding {
+  id          String                      @id @default(uuid())
+  contentType ContentEmbeddingType        @map("content_type")
+  contentId   String                      @map("content_id")
+  embedding   Unsupported("vector(768)")? // 768 dimensions for BERT-based models
+  textPreview String?                     @map("text_preview")
+  metadata    Json?
+  createdAt   DateTime                    @default(now()) @map("created_at")
+  updatedAt   DateTime                    @updatedAt @map("updated_at")
+
+  @@unique([contentType, contentId])
+  @@index([contentType])
+  @@map("content_embeddings")
+}
+
+model UserInterestEmbedding {
+  id           String                      @id @default(uuid())
+  userId       String                      @map("user_id")
+  interestType UserInterestType            @map("interest_type")
+  embedding    Unsupported("vector(768)")? // 768 dimensions
+  weight       Float                       @default(1.0)
+  updatedAt    DateTime                    @updatedAt @map("updated_at")
+
+  @@unique([userId, interestType])
+  @@map("user_interest_embeddings")
+}
+
+// ==================== Enums ====================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum WorkStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  HIATUS
+  ABANDONED
+}
+
+enum ContentType {
+  NOVEL
+  MANGA
+}
+
+enum ReadingDirection {
+  LTR // Left to Right (西方漫画、韩漫)
+  RTL // Right to Left (日漫)
+}
+
+enum ChapterStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum PageMode {
+  SCROLL
+  PAGINATED
+}
+
+enum LikeTargetType {
+  CARD
+  COMMENT
+}
+
+enum NotificationType {
+  SYSTEM
+  LIKE
+  COMMENT
+  FOLLOW
+  CHAPTER_UPDATE
+  QUOTE
+  MENTION
+}
+
+enum ContentEmbeddingType {
+  WORK
+  CHAPTER
+  PARAGRAPH
+  CARD
+}
+
+enum UserInterestType {
+  SHORT_TERM
+  LONG_TERM
+  EXPLICIT
+}
+
+// ==================== Danmaku (弹幕系统) ====================
+
+model Danmaku {
+  id        String      @id @default(uuid())
+  anchorId  String      @map("anchor_id") // 绑定到段落的 Anchor_ID
+  authorId  String      @map("author_id")
+  content   String      @db.VarChar(100) // 弹幕限制100字
+  color     String      @default("#FFFFFF")
+  type      DanmakuType @default(SCROLL) // SCROLL / TOP / BOTTOM
+  fontSize  Int         @default(24) @map("font_size")
+  likeCount Int         @default(0) @map("like_count")
+  isDeleted Boolean     @default(false) @map("is_deleted")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([anchorId])
+  @@index([authorId])
+  @@map("danmaku")
+}
+
+enum DanmakuType {
+  SCROLL // 滚动弹幕
+  TOP // 顶部固定
+  BOTTOM // 底部固定
+}
+
+// ==================== Search History ====================
+
+model SearchHistory {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  query       String
+  resultCount Int      @default(0) @map("result_count")
+  searchType  String   @default("all") @map("search_type") // all, work, user, chapter
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([query])
+  @@index([createdAt(sort: Desc)])
+  @@map("search_history")
+}
+
+// ==================== Draft (草稿系统) ====================
+
+model Draft {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  title          String? // 草稿标题
+  content        String   @db.Text // Markdown 内容
+  workId         String?  @map("work_id") // 关联的作品ID（可选，用于已有作品）
+  chapterId      String?  @map("chapter_id") // 关联的章节ID（可选，用于已有章节）
+  cursorPosition Int?     @map("cursor_position") // 光标位置
+  wordCount      Int      @default(0) @map("word_count") // 字数统计
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  lastSavedAt    DateTime @default(now()) @map("last_saved_at") // 最后保存时间
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, workId, chapterId]) // 每个用户对每个作品/章节只有一个草稿
+  @@index([userId])
+  @@index([workId])
+  @@index([chapterId])
+  @@map("drafts")
+}
+
+// ==================== Reading List (阅读列表) ====================
+
+model ReadingListItem {
+  id                String            @id @default(uuid())
+  userId            String            @map("user_id")
+  workId            String            @map("work_id")
+  status            ReadingListStatus @default(WANT_TO_READ)
+  lastReadChapterId String?           @map("last_read_chapter_id")
+  lastReadAt        DateTime?         @map("last_read_at")
+  hasUpdate         Boolean           @default(false) @map("has_update") // 是否有新章节更新
+  note              String? // 用户备注
+  rating            Int? // 用户评分 1-5
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workId])
+  @@index([userId, status])
+  @@index([userId, hasUpdate])
+  @@index([lastReadAt])
+  @@map("reading_list_items")
+}
+
+enum ReadingListStatus {
+  WANT_TO_READ // 想读
+  READING // 在读
+  COMPLETED // 已读完
+  DROPPED // 弃坑
+  ON_HOLD // 暂停
+}
+
+// ==================== 会员等级体系 (Membership System) ====================
+
+// 会员等级枚举
+enum MemberLevel {
+  REGULAR // Lv.0 普通会员 - 注册即得
+  OFFICIAL // Lv.1 正式会员 - 贡献度达标+审核通过
+  SENIOR // Lv.2 资深会员 - 持续贡献+时间沉淀
+  HONORARY // Lv.3 荣誉会员 - 特殊贡献+官方认证
+}
+
+// 贡献类型枚举
+enum ContributionType {
+  // 阅读贡献
+  READ_CHAPTER // 完整阅读1章节 +2
+  READ_DURATION // 累计阅读30分钟 +5
+
+  // 互动贡献
+  COMMENT_VALID // 发布有效评论（≥20字） +3
+  COMMENT_LIKED // 评论被点赞 +1
+  QUOTE_INTERACTED // 引用被互动（点赞/评论） +2
+
+  // 创作贡献
+  PUBLISH_CHAPTER // 发布章节 +20
+  WORK_FAVORITED // 作品被收藏 +5
+  PARAGRAPH_QUOTED // 段落被引用 +3
+
+  // 社区贡献
+  REPORT_VALID // 举报有效违规 +10
+  ACTIVITY_PARTICIPATE // 参与官方活动 +15
+}
+
+// 贡献度记录模型
+model ContributionRecord {
+  id            String           @id @default(uuid())
+  userId        String           @map("user_id")
+  type          ContributionType
+  points        Int // 获得的积分
+  referenceId   String?          @map("reference_id") // 关联的实体ID（章节ID、评论ID等）
+  referenceType String?          @map("reference_type") // 关联实体类型
+  description   String? // 描述信息
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("contribution_records")
+}
+
+// 会员申请状态枚举
+enum MemberApplicationStatus {
+  PENDING // 待审核
+  APPROVED // 已通过
+  REJECTED // 已拒绝
+}
+
+// 会员申请模型
+model MemberApplication {
+  id           String                  @id @default(uuid())
+  userId       String                  @map("user_id")
+  targetLevel  MemberLevel             @map("target_level") // 申请的目标等级
+  currentScore Int                     @map("current_score") // 申请时的贡献度
+  status       MemberApplicationStatus @default(PENDING)
+  reason       String? // 申请理由
+  rejectReason String?                 @map("reject_reason") // 拒绝原因
+  reviewerId   String?                 @map("reviewer_id") // 审核人ID
+  reviewedAt   DateTime?               @map("reviewed_at") // 审核时间
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("member_applications")
+}
+
+// ==================== 社区活动系统 (Community Activity System) ====================
+
+// 活动类型枚举
+enum ActivityType {
+  READING_CHALLENGE // 阅读打卡
+  WRITING_CONTEST // 评论征集/创作接力
+  COMMUNITY_EVENT // 社区活动（引用挑战等）
+  SPECIAL_EVENT // 官方特殊活动
+}
+
+// 活动状态枚举
+enum ActivityStatus {
+  DRAFT // 草稿
+  PENDING // 待审核
+  ACTIVE // 进行中
+  ENDED // 已结束
+  CANCELLED // 已取消
+}
+
+// 参与状态枚举
+enum ParticipationStatus {
+  JOINED // 已参与
+  COMPLETED // 已完成
+  FAILED // 未完成
+  WITHDRAWN // 已退出
+}
+
+// 奖励类型枚举
+enum RewardType {
+  MUSTARD_SEED // 零芥子代币
+  BADGE // 徽章
+  TITLE // 称号
+  EXPERIENCE // 经验值
+}
+
+// 活动模型
+model Activity {
+  id              String         @id @default(uuid())
+  title           String         @db.VarChar(30) // 活动名称 4-30字符
+  description     String         @db.VarChar(500) // 活动描述 10-500字符
+  coverImage      String?        @map("cover_image") // 活动封面图
+  type            ActivityType // 活动类型
+  status          ActivityStatus @default(DRAFT) // 活动状态
+  startTime       DateTime       @map("start_time") // 开始时间
+  endTime         DateTime       @map("end_time") // 结束时间
+  rules           Json? // 活动规则和要求（JSON格式）
+  rewards         Json? // 奖励配置（JSON格式）
+  maxParticipants Int?           @map("max_participants") // 最大参与人数（可选）
+  rewardPerPerson Int            @default(0) @map("reward_per_person") // 单人奖励金额
+  totalPool       Int            @default(0) @map("total_pool") // 总奖池金额
+  lockedPool      Int            @default(0) @map("locked_pool") // 已锁定的奖池金额
+  creatorId       String         @map("creator_id") // 创建者ID
+  reviewerId      String?        @map("reviewer_id") // 审核人ID
+  reviewedAt      DateTime?      @map("reviewed_at") // 审核时间
+  rejectReason    String?        @map("reject_reason") // 拒绝原因
+  isDeleted       Boolean        @default(false) @map("is_deleted")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  creator        User                    @relation("ActivityCreator", fields: [creatorId], references: [id])
+  participations ActivityParticipation[]
+  activityRewards ActivityReward[]
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([type])
+  @@index([startTime])
+  @@index([endTime])
+  @@map("activities")
+}
+
+// 活动参与模型
+model ActivityParticipation {
+  id            String              @id @default(uuid())
+  activityId    String              @map("activity_id")
+  userId        String              @map("user_id")
+  status        ParticipationStatus @default(JOINED) // 参与状态
+  progress      Json? // 进度数据（JSON格式）
+  completedAt   DateTime?           @map("completed_at") // 完成时间
+  rewardClaimed Boolean             @default(false) @map("reward_claimed") // 是否已领取奖励
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  activity Activity        @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rewards  ActivityReward[]
+
+  @@unique([activityId, userId]) // 每个用户只能参与一次同一活动
+  @@index([activityId])
+  @@index([userId])
+  @@index([status])
+  @@map("activity_participations")
+}
+
+// 活动奖励模型
+model ActivityReward {
+  id              String     @id @default(uuid())
+  activityId      String     @map("activity_id")
+  userId          String     @map("user_id")
+  participationId String     @map("participation_id")
+  rewardType      RewardType @map("reward_type") // 奖励类型
+  amount          Int        @default(0) // 数量（零芥子/经验值）
+  badgeId         String?    @map("badge_id") // 徽章ID（可选）
+  titleId         String?    @map("title_id") // 称号ID（可选）
+  claimedAt       DateTime   @default(now()) @map("claimed_at") // 领取时间
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  // Relations
+  activity      Activity              @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participation ActivityParticipation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+  @@index([userId])
+  @@index([participationId])
+  @@index([rewardType])
+  @@map("activity_rewards")
+}
+
+// ==================== 零芥子代币系统 (Mustard Seed Token System) ====================
+
+// 交易类型枚举
+enum TransactionType {
+  DAILY_CLAIM // 每日领取
+  TIP_SENT // 打赏发出
+  TIP_RECEIVED // 打赏收到
+  REWARD // 活动奖励
+  REFUND // 退款
+}
+
+// 钱包模型 - 存储用户的零芥子余额
+model Wallet {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  balance       Int      @default(0) // 当前余额
+  totalReceived Int      @default(0) @map("total_received") // 累计收到
+  totalSent     Int      @default(0) @map("total_sent") // 累计发出
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@map("wallets")
+}
+
+// 交易记录模型 - 记录所有零芥子交易
+model Transaction {
+  id            String          @id @default(uuid())
+  walletId      String          @map("wallet_id")
+  type          TransactionType
+  amount        Int // 交易金额（正数表示收入，负数表示支出）
+  referenceId   String?         @map("reference_id") // 关联ID（作品/章节/用户/活动ID）
+  referenceType String?         @map("reference_type") // 关联类型（work/chapter/user/activity）
+  description   String? // 交易描述
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([referenceId, referenceType])
+  @@map("transactions")
+}
+
+// 每日领取记录模型 - 防止同一天多次领取
+model DailyClaimRecord {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  claimDate DateTime @map("claim_date") @db.Date // 领取日期（只存日期部分）
+  amount    Int // 领取金额
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, claimDate]) // 每个用户每天只能领取一次
+  @@index([userId])
+  @@index([claimDate])
+  @@map("daily_claim_records")
+}
+
+// 打赏记录模型 - 详细的打赏记录
+model TipRecord {
+  id         String   @id @default(uuid())
+  fromUserId String   @map("from_user_id") // 打赏者
+  toUserId   String   @map("to_user_id") // 被打赏者
+  workId     String?  @map("work_id") // 关联作品（可选）
+  chapterId  String?  @map("chapter_id") // 关联章节（可选）
+  amount     Int // 打赏金额
+  message    String? // 打赏留言
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([workId])
+  @@index([chapterId])
+  @@index([createdAt])
+  @@map("tip_records")
+}
+
+// ==================== 关注系统 (Follow System) ====================
+
+// 关注关系模型 - 用户之间的关注关系
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")   // 关注者（发起关注的人）
+  followingId String   @map("following_id")  // 被关注者（被关注的人）
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])  // 每对用户只能有一条关注记录
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}

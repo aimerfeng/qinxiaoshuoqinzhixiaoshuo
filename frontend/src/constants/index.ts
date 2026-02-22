@@ -85,4 +85,49 @@ export const STORAGE_KEYS = {
   THEME: 'anima_theme',
   READING_SETTINGS: 'anima_reading_settings',
   READING_PROGRESS: 'anima_reading_progress',
+  REDIRECT_URL: 'anima_redirect_url',
 } as const;
+
+// Route configuration
+export const ROUTES = {
+  // Public routes (accessible to everyone)
+  HOME: '/',
+
+  // Auth routes (only for unauthenticated users)
+  AUTH: {
+    LOGIN: '/auth/login',
+    REGISTER: '/auth/register',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
+    VERIFY_EMAIL: '/auth/verify-email',
+  },
+
+  // Protected routes (require authentication)
+  PROTECTED: {
+    PROFILE: '/profile',
+    SETTINGS: '/settings',
+    CREATOR: '/creator',
+    BOOKSHELF: '/bookshelf',
+  },
+} as const;
+
+// Auth route paths (for checking if current route is an auth route)
+export const AUTH_ROUTES = [
+  ROUTES.AUTH.LOGIN,
+  ROUTES.AUTH.REGISTER,
+  ROUTES.AUTH.FORGOT_PASSWORD,
+  ROUTES.AUTH.RESET_PASSWORD,
+  ROUTES.AUTH.VERIFY_EMAIL,
+] as const;
+
+// Protected route prefixes (routes that require authentication)
+export const PROTECTED_ROUTE_PREFIXES = [
+  '/profile',
+  '/settings',
+  '/creator',
+  '/bookshelf',
+] as const;
+
+// Default redirect paths
+export const DEFAULT_LOGIN_REDIRECT = ROUTES.HOME;
+export const DEFAULT_LOGOUT_REDIRECT = ROUTES.AUTH.LOGIN;
