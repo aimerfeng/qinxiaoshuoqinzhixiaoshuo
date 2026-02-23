@@ -3,7 +3,7 @@
  *
  * 任务 8.1.4: 图片上传 API
  */
-export class UploadImageResponseDto {
+export interface UploadImageResponseDto {
   /**
    * 上传成功标志
    */

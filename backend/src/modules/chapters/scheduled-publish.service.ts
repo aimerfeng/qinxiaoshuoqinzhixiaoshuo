@@ -150,7 +150,6 @@ export class ScheduledPublishService implements OnModuleInit, OnModuleDestroy {
       if (existingParagraphs === 0) {
         // 调用段落服务创建段落
         await this.paragraphsService.createParagraphsForChapter(
-          tx,
           chapter.workId,
           chapterId,
           chapter.content,

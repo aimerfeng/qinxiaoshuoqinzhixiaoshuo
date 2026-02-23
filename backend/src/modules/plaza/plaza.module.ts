@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { RedisModule } from '../../redis/redis.module';
+import { AchievementModule } from '../achievement/achievement.module';
 import { PlazaController } from './plaza.controller';
 import { PlazaService } from './plaza.service';
 import { LikeService } from './like.service';
@@ -13,6 +14,7 @@ import { HotScoreService } from './hot-score.service';
   imports: [
     PrismaModule,
     RedisModule,
+    AchievementModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-secret-key',
       signOptions: { expiresIn: '24h' },

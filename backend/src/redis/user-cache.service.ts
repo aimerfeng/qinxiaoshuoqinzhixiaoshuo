@@ -57,7 +57,8 @@ export class UserCacheService {
   private readonly USER_PROFILE_KEY = 'user:profile';
   private readonly USER_SETTINGS_KEY = 'user:settings';
   private readonly USER_FOLLOWING_KEY = 'user:following';
-  private readonly USER_FOLLOWERS_KEY = 'user:followers';
+  // 预留用于未来的粉丝列表缓存功能
+  // private readonly USER_FOLLOWERS_KEY = 'user:followers';
 
   // 缓存 TTL 配置
   private readonly USER_INFO_TTL = 3600; // 1 小时

@@ -29,6 +29,16 @@ export const SUPPORTED_FILE_TYPES = ['txt', 'docx'] as const;
 export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 /**
+ * 章节创建结果类型
+ */
+interface ChapterCreateResult {
+  id: string;
+  title: string;
+  orderIndex: number;
+  wordCount: number;
+}
+
+/**
  * 批量章节导入服务
  * Service for batch importing chapters from uploaded files
  *
@@ -51,16 +61,10 @@ export class BatchImportService {
     private readonly paragraphsService: ParagraphsService,
   ) {}
 
+
   /**
    * 批量导入章节
    * Batch import chapters from uploaded file
-   *
-   * @param workId - Work ID to import chapters into
-   * @param authorId - Author ID (must be work owner)
-   * @param file - Uploaded file buffer
-   * @param filename - Original filename
-   * @param options - Import options
-   * @returns BatchImportResult with import statistics
    */
   async batchImportChapters(
     workId: string,
@@ -114,12 +118,6 @@ export class BatchImportService {
   /**
    * 预览章节检测结果
    * Preview chapter detection result without importing
-   *
-   * @param file - Uploaded file buffer
-   * @param filename - Original filename
-   * @param encoding - Optional encoding
-   * @param customPattern - Optional custom pattern
-   * @returns Chapter detection preview
    */
   async previewChapters(
     file: Buffer,
@@ -228,7 +226,8 @@ export class BatchImportService {
       return result.rawContent;
     }
 
-    throw new BadRequestException(`不支持的文件类型: ${fileType}`);
+    // This should never happen due to getFileType validation
+    throw new BadRequestException(`不支持的文件类型: ${fileType as string}`);
   }
 
   /**
@@ -248,6 +247,7 @@ export class BatchImportService {
 
     return this.chapterDetectorService.detectChapters(content);
   }
+
 
   /**
    * 导入章节到数据库
@@ -367,6 +367,7 @@ export class BatchImportService {
     }
   }
 
+
   /**
    * 创建单个章节
    * Create a single chapter
@@ -381,32 +382,40 @@ export class BatchImportService {
   ): Promise<ImportedChapterInfo> {
     const wordCount = ChaptersService.calculateWordCount(content);
 
-    const chapter = await (this.prisma as any).$transaction(async (tx: any) => {
-      // Create the chapter
-      const newChapter = await tx.chapter.create({
-        data: {
-          workId,
-          authorId,
-          title,
-          content,
-          orderIndex,
-          wordCount,
-          status,
-          version: 1,
-          publishedAt: status === ChapterStatus.PUBLISHED ? new Date() : null,
-        },
-      });
+    const chapter: ChapterCreateResult = await this.prisma.$transaction(
+      async (tx) => {
+        // Create the chapter
+        const newChapter = await tx.chapter.create({
+          data: {
+            workId,
+            authorId,
+            title,
+            content,
+            orderIndex,
+            wordCount,
+            status,
+            version: 1,
+            publishedAt: status === ChapterStatus.PUBLISHED ? new Date() : null,
+          },
+          select: {
+            id: true,
+            title: true,
+            orderIndex: true,
+            wordCount: true,
+          },
+        });
 
-      // Update work's total word count
-      await tx.work.update({
-        where: { id: workId },
-        data: {
-          wordCount: { increment: wordCount },
-        },
-      });
+        // Update work's total word count
+        await tx.work.update({
+          where: { id: workId },
+          data: {
+            wordCount: { increment: wordCount },
+          },
+        });
 
-      return newChapter;
-    });
+        return newChapter;
+      },
+    );
 
     // If chapter is published, create paragraphs and anchors
     if (status === ChapterStatus.PUBLISHED) {

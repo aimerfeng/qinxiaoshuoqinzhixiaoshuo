@@ -20,7 +20,7 @@ import { MetricsService } from '../services/metrics.service.js';
 export class MetricsInterceptor implements NestInterceptor {
   constructor(private readonly metricsService: MetricsService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const startTime = Date.now();
 
     return next.handle().pipe(

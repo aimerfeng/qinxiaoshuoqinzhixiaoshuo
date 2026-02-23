@@ -24,18 +24,23 @@ import {
 } from './dto/index.js';
 import { PaginatedResult } from '../../common/dto/pagination.dto.js';
 import { WorkStatus, ContentType } from '@prisma/client';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
 
 /**
  * 作品服务
  * 处理作品管理相关业务逻辑
  *
  * 需求2: 作品管理与版本控制
+ * 需求24.4.1: 发布作品成就集成
  */
 @Injectable()
 export class WorksService {
   private readonly logger = new Logger(WorksService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly achievementProgressService: AchievementProgressService,
+  ) {}
 
   /**
    * 创建新作品
@@ -492,6 +497,28 @@ export class WorksService {
           },
         });
       });
+
+      // 需求24.4.1: 发布作品成就集成
+      // 当作品从草稿状态发布时，触发发布作品成就进度更新
+      if (
+        status === WorkStatus.PUBLISHED &&
+        existingWork.status === WorkStatus.DRAFT
+      ) {
+        try {
+          const achievementResults = await this.achievementProgressService.trackWorkPublishCount(authorId);
+          const unlockedAchievements = achievementResults.filter(r => r.isNewlyUnlocked);
+          if (unlockedAchievements.length > 0) {
+            this.logger.log(
+              `User ${authorId} unlocked ${unlockedAchievements.length} work publish achievement(s)`,
+            );
+          }
+        } catch (achievementError) {
+          // 成就更新失败不应影响作品发布
+          this.logger.warn(
+            `Failed to update work publish achievements for user ${authorId}: ${achievementError}`,
+          );
+        }
+      }
 
       this.logger.log(
         `Work updated successfully: ${workId} by author: ${authorId}`,

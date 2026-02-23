@@ -16,6 +16,7 @@ import {
 } from '@/components/plaza';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import Header from '@/components/layout/Header';
 import type { FeedType } from '@/types/plaza';
 
 export default function PlazaPage() {
@@ -58,12 +59,12 @@ export default function PlazaPage() {
       const response = await plazaService.getFeed(type, cursor);
       
       if (cursor) {
-        appendCards(response.cards);
+        appendCards(response?.cards ?? []);
       } else {
-        setCards(response.cards);
+        setCards(response?.cards ?? []);
       }
-      setNextCursor(response.nextCursor);
-      setMeta(response.meta);
+      setNextCursor(response?.nextCursor ?? null);
+      setMeta(response?.meta ?? null);
     } catch (err: any) {
       setError(err.message || '加载失败');
     } finally {
@@ -77,9 +78,9 @@ export default function PlazaPage() {
     setRefreshing(true);
     try {
       const response = await plazaService.getFeed(feedType);
-      setCards(response.cards);
-      setNextCursor(response.nextCursor);
-      setMeta(response.meta);
+      setCards(response?.cards ?? []);
+      setNextCursor(response?.nextCursor ?? null);
+      setMeta(response?.meta ?? null);
     } catch (err: any) {
       setError(err.message || '刷新失败');
     } finally {
@@ -122,7 +123,10 @@ export default function PlazaPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50/50 to-purple-50/30">
-      {/* Header */}
+      {/* Global Header */}
+      <Header />
+      
+      {/* Plaza Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100/50">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">

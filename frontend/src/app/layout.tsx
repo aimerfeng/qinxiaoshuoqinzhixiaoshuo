@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   creator: 'Project Anima',
   icons: {
     icon: '/favicon.ico',
-    apple: '/icons/icon-192x192.png',
+    apple: '/icons/icon.svg',
   },
   manifest: '/manifest.json',
   appleWebApp: {

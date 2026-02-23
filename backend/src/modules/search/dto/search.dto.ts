@@ -37,7 +37,7 @@ export enum WorkStatusFilter {
 
 export class SearchQueryDto {
   @IsString()
-  q: string;
+  q!: string;
 
   @IsOptional()
   @IsEnum(SearchType)
@@ -79,7 +79,7 @@ export class SearchQueryDto {
 
 export class AutocompleteQueryDto {
   @IsString()
-  q: string;
+  q!: string;
 
   @IsOptional()
   @Type(() => Number)

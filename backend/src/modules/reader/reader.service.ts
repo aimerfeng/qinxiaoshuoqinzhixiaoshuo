@@ -22,6 +22,9 @@ import {
   ChapterListResponseDto,
   ChapterBriefDto,
 } from './dto/index.js';
+import { AchievementUnlockService, AchievementEventType } from '../achievement/achievement-unlock.service.js';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
+import { Wenku8ProxyService } from '../wenku8-proxy/wenku8-proxy.service.js';
 
 /**
  * 阅读器服务
@@ -33,7 +36,12 @@ import {
 export class ReaderService {
   private readonly logger = new Logger(ReaderService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly achievementUnlockService: AchievementUnlockService,
+    private readonly achievementProgressService: AchievementProgressService,
+    private readonly wenku8ProxyService: Wenku8ProxyService,
+  ) {}
 
   /**
    * 获取章节内容
@@ -112,6 +120,25 @@ export class ReaderService {
       where: { id: chapterId },
       data: { viewCount: { increment: 1 } },
     });
+
+    // 需求24.4.3: 被阅读成就（初露锋芒→百万人气）
+    // 当章节被阅读时，更新作者的被阅读成就进度
+    if (chapter.work.authorId) {
+      try {
+        await this.achievementProgressService.trackWorkViews(
+          chapter.work.authorId,
+          1, // 每次阅读增加1
+        );
+        this.logger.debug(
+          `Work views achievement progress updated for author ${chapter.work.authorId}`,
+        );
+      } catch (achievementError) {
+        // 成就更新失败不应影响阅读功能
+        this.logger.warn(
+          `Failed to update work views achievement progress: ${achievementError}`,
+        );
+      }
+    }
 
     // 获取相邻章节
     const [prevChapter, nextChapter] = await Promise.all([
@@ -219,6 +246,7 @@ export class ReaderService {
    *
    * 需求4验收标准5: WHEN 用户滚动阅读 THEN System SHALL 记录阅读进度并支持断点续读
    * 需求4验收标准8: WHEN 用户退出 Reader THEN System SHALL 保存当前阅读位置
+   * 需求24.3.2: 阅读时长成就 - 计算并累计阅读时长
    */
   async saveReadingProgress(
     userId: string,
@@ -247,6 +275,32 @@ export class ReaderService {
     }
 
     try {
+      // Check if this is a new chapter completion (readPercentage >= 100)
+      const existingProgress = await this.prisma.readingProgress.findUnique({
+        where: { userId_chapterId: { userId, chapterId } },
+        select: { readPercentage: true, lastReadAt: true },
+      });
+
+      const isNewCompletion = 
+        readPercentage >= 100 && 
+        (!existingProgress || existingProgress.readPercentage < 100);
+
+      // 需求24.3.2: 计算阅读时长（分钟）
+      // 计算自上次保存进度以来经过的时间
+      let readingMinutes = 0;
+      if (existingProgress?.lastReadAt) {
+        const now = new Date();
+        const lastReadAt = new Date(existingProgress.lastReadAt);
+        const diffMs = now.getTime() - lastReadAt.getTime();
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        
+        // 限制单次阅读时长最大为60分钟，防止异常数据
+        // 如果超过60分钟，可能是用户离开后回来，不计入阅读时长
+        if (diffMinutes > 0 && diffMinutes <= 60) {
+          readingMinutes = diffMinutes;
+        }
+      }
+
       const progress = await this.prisma.readingProgress.upsert({
         where: { userId_chapterId: { userId, chapterId } },
         create: {
@@ -268,6 +322,105 @@ export class ReaderService {
       this.logger.log(
         `Reading progress saved: user ${userId}, chapter ${chapterId}, paragraph ${paragraphIndex}, ${readPercentage}%`,
       );
+
+      // 需求24.3.1: 阅读量成就（初窥门径→阅尽天下）
+      // 当用户完成阅读一个章节时（readPercentage >= 100），触发阅读量成就进度更新
+      if (isNewCompletion) {
+        try {
+          await this.achievementUnlockService.triggerEvent(
+            AchievementEventType.CHAPTER_READ,
+            userId,
+            1, // 每完成一个章节增加1
+          );
+          this.logger.log(
+            `Achievement progress triggered for user ${userId}: CHAPTER_READ`,
+          );
+
+          // 需求24.3.4: 完本成就（初尝完结→完本狂魔）
+          // 检查是否完成了整部作品的阅读
+          await this.checkWorkCompletion(userId, workId);
+
+          // 需求24.3.5: 类型探索成就（类型新手→全类型通）
+          // 追踪用户阅读的作品类型
+          await this.achievementProgressService.trackGenreExploration(userId, workId);
+          this.logger.log(
+            `Genre exploration tracked for user ${userId}, work ${workId}`,
+          );
+
+          // 需求24.6.1: 时间相关成就（深夜书虫/早起鸟儿）
+          // 检查当前时间是否在特殊时段，并触发相应成就进度更新
+          const currentHour = new Date().getHours();
+          
+          // 深夜书虫成就：00:00-05:00（0-4点）
+          if (currentHour >= 0 && currentHour < 5) {
+            await this.achievementUnlockService.triggerEvent(
+              AchievementEventType.LATE_NIGHT_READING,
+              userId,
+              1, // 每完成一个章节增加1
+            );
+            this.logger.log(
+              `Achievement progress triggered for user ${userId}: LATE_NIGHT_READING (hour: ${currentHour})`,
+            );
+          }
+          
+          // 早起鸟儿成就：05:00-07:00（5-6点）
+          if (currentHour >= 5 && currentHour < 7) {
+            await this.achievementUnlockService.triggerEvent(
+              AchievementEventType.EARLY_BIRD_READING,
+              userId,
+              1, // 每完成一个章节增加1
+            );
+            this.logger.log(
+              `Achievement progress triggered for user ${userId}: EARLY_BIRD_READING (hour: ${currentHour})`,
+            );
+          }
+        } catch (achievementError) {
+          // 成就更新失败不应影响阅读进度保存
+          this.logger.warn(
+            `Failed to update achievement progress: ${achievementError}`,
+          );
+        }
+      }
+
+      // 需求24.3.2: 阅读时长成就（小试牛刀→时光旅人）
+      // 累计阅读时长并触发成就进度更新
+      if (readingMinutes > 0) {
+        try {
+          // 更新用户的累计阅读时长
+          await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+              totalReadingMinutes: { increment: readingMinutes },
+            },
+          });
+
+          // 触发阅读时长成就进度更新
+          await this.achievementUnlockService.triggerEvent(
+            AchievementEventType.READING_TIME,
+            userId,
+            readingMinutes, // 增加的阅读分钟数
+          );
+          this.logger.log(
+            `Achievement progress triggered for user ${userId}: READING_TIME (+${readingMinutes} minutes)`,
+          );
+        } catch (achievementError) {
+          // 成就更新失败不应影响阅读进度保存
+          this.logger.warn(
+            `Failed to update reading time achievement progress: ${achievementError}`,
+          );
+        }
+      }
+
+      // 需求24.3.3: 连续阅读成就（三日不辍→年度书友）
+      // 更新连续阅读天数并触发成就进度更新
+      try {
+        await this.updateReadingStreak(userId);
+      } catch (streakError) {
+        // 连续阅读更新失败不应影响阅读进度保存
+        this.logger.warn(
+          `Failed to update reading streak: ${streakError}`,
+        );
+      }
 
       return {
         message: '阅读进度保存成功',
@@ -701,5 +854,297 @@ export class ReaderService {
       ),
       totalChapters: chapters.length,
     };
+  }
+
+  // ==================== Wenku8 内容方法 ====================
+
+  /**
+   * 获取 Wenku8 章节内容
+   * 将 wenku8 数据转换为统一的阅读器格式
+   */
+  async getWenku8ChapterContent(
+    novelId: string,
+    chapterId: string,
+    _userId?: string,
+  ): Promise<ChapterContentResponseDto> {
+    // Get chapter content from wenku8
+    const chapterData = await this.wenku8ProxyService.getChapterContent(novelId, chapterId);
+
+    // Get novel info for work details
+    const novelData = await this.wenku8ProxyService.getNovelInfo(novelId);
+
+    // Convert content to paragraphs with anchor IDs
+    const paragraphs = this.convertContentToParagraphs(chapterData.content, novelId, chapterId);
+
+    // Build prev/next chapter info
+    const prevChapter = chapterData.prevChapterId ? {
+      id: chapterData.prevChapterId,
+      title: '上一章',
+      orderIndex: 0,
+    } : null;
+
+    const nextChapter = chapterData.nextChapterId ? {
+      id: chapterData.nextChapterId,
+      title: '下一章',
+      orderIndex: 0,
+    } : null;
+
+    this.logger.log(
+      `Wenku8 chapter content retrieved: novel ${novelId}, chapter ${chapterId}`,
+    );
+
+    return {
+      message: '获取章节内容成功',
+      chapter: {
+        id: chapterId,
+        workId: `wenku8-${novelId}`,
+        title: chapterData.title,
+        orderIndex: 0,
+        wordCount: chapterData.content.length,
+        viewCount: 0,
+        status: 'PUBLISHED',
+        publishedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      work: {
+        id: `wenku8-${novelId}`,
+        title: novelData.title,
+        authorId: 'wenku8',
+        authorName: novelData.author,
+        contentType: 'NOVEL',
+        readingDirection: 'LTR',
+      },
+      content: chapterData.content,
+      paragraphs,
+      readingProgress: null,
+      prevChapter,
+      nextChapter,
+    };
+  }
+
+  /**
+   * 获取 Wenku8 章节目录
+   */
+  async getWenku8ChapterList(
+    novelId: string,
+    _userId?: string,
+  ): Promise<ChapterListResponseDto> {
+    const novelData = await this.wenku8ProxyService.getNovelInfo(novelId);
+
+    // Flatten volumes into chapter list
+    const chapters: ChapterBriefDto[] = [];
+    let orderIndex = 0;
+
+    for (const volume of novelData.volumes) {
+      for (const chapter of volume.chapters) {
+        chapters.push({
+          id: chapter.id,
+          title: `${volume.name} - ${chapter.title}`,
+          orderIndex: orderIndex++,
+          wordCount: 0,
+          status: 'PUBLISHED',
+          publishedAt: null,
+        });
+      }
+    }
+
+    return {
+      message: '获取章节目录成功',
+      workId: `wenku8-${novelId}`,
+      workTitle: novelData.title,
+      contentType: 'NOVEL',
+      chapters,
+      totalChapters: chapters.length,
+    };
+  }
+
+  /**
+   * 将文本内容转换为段落数组
+   */
+  private convertContentToParagraphs(
+    content: string,
+    novelId: string,
+    chapterId: string,
+  ): ParagraphDto[] {
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    return lines.map((line, index) => ({
+      id: `wenku8-${novelId}-${chapterId}-p${index}`,
+      anchorId: `w8-${novelId}-${chapterId}-${index}`,
+      content: line.trim(),
+      orderIndex: index,
+      quoteCount: 0,
+    }));
+  }
+
+  /**
+   * 更新用户连续阅读天数
+   * 任务24.3.3: 连续阅读成就（三日不辍→年度书友）
+   *
+   * 逻辑：
+   * - 当用户阅读时，检查是否是新的一天
+   * - 如果是连续的一天（昨天有阅读），增加连续天数
+   * - 如果间隔超过1天，重置连续天数为1
+   * - 更新最长连续天数记录
+   * - 触发连续阅读成就事件
+   */
+  private async updateReadingStreak(userId: string): Promise<void> {
+    // 获取用户当前的连续阅读信息
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        lastReadDate: true,
+        currentReadingStreak: true,
+        longestReadingStreak: true,
+      },
+    });
+
+    if (!user) {
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 只保留日期部分
+
+    const lastReadDate = user.lastReadDate
+      ? new Date(user.lastReadDate)
+      : null;
+    if (lastReadDate) {
+      lastReadDate.setHours(0, 0, 0, 0);
+    }
+
+    // 如果今天已经阅读过，不需要更新连续天数
+    if (lastReadDate && lastReadDate.getTime() === today.getTime()) {
+      return;
+    }
+
+    let newStreak = 1; // 默认为1天（今天）
+
+    if (lastReadDate) {
+      // 计算上次阅读日期和今天的差距
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (lastReadDate.getTime() === yesterday.getTime()) {
+        // 昨天有阅读，连续天数+1
+        newStreak = user.currentReadingStreak + 1;
+      }
+      // 如果间隔超过1天，newStreak保持为1（重置）
+    }
+
+    // 更新最长连续天数
+    const newLongestStreak = Math.max(newStreak, user.longestReadingStreak);
+
+    // 更新用户的连续阅读信息
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastReadDate: today,
+        currentReadingStreak: newStreak,
+        longestReadingStreak: newLongestStreak,
+      },
+    });
+
+    this.logger.log(
+      `Reading streak updated for user ${userId}: ${newStreak} days (longest: ${newLongestStreak})`,
+    );
+
+    // 触发连续阅读成就进度更新
+    // 使用当前连续天数作为进度值
+    await this.achievementUnlockService.triggerEvent(
+      AchievementEventType.CONSECUTIVE_READING,
+      userId,
+      newStreak, // 当前连续天数
+    );
+  }
+
+  /**
+   * 检查用户是否完成了整部作品的阅读
+   * 任务24.3.4: 完本成就（初尝完结→完本狂魔）
+   *
+   * 逻辑：
+   * - 获取作品的所有已发布章节
+   * - 检查用户是否阅读完成了所有章节（readPercentage >= 100）
+   * - 如果是首次完成该作品，触发 WORK_COMPLETED 事件
+   */
+  private async checkWorkCompletion(
+    userId: string,
+    workId: string,
+  ): Promise<void> {
+    try {
+      // 获取作品的所有已发布章节
+      const publishedChapters = await this.prisma.chapter.findMany({
+        where: {
+          workId,
+          isDeleted: false,
+          status: ChapterStatus.PUBLISHED,
+        },
+        select: { id: true },
+      });
+
+      // 如果作品没有已发布章节，不处理
+      if (publishedChapters.length === 0) {
+        return;
+      }
+
+      const chapterIds = publishedChapters.map((c) => c.id);
+
+      // 获取用户对这些章节的阅读进度
+      const userProgress = await this.prisma.readingProgress.findMany({
+        where: {
+          userId,
+          chapterId: { in: chapterIds },
+          readPercentage: { gte: 100 }, // 只统计完成的章节
+        },
+        select: { chapterId: true },
+      });
+
+      // 检查是否所有章节都已完成
+      const completedChapterIds = new Set(userProgress.map((p) => p.chapterId));
+      const allChaptersCompleted = chapterIds.every((id) =>
+        completedChapterIds.has(id),
+      );
+
+      if (!allChaptersCompleted) {
+        return;
+      }
+
+      // 检查是否是首次完成该作品（避免重复触发）
+      // 通过检查用户是否已经有该作品的完成记录
+      const existingCompletion = await this.prisma.workCompletion.findUnique({
+        where: { userId_workId: { userId, workId } },
+      });
+
+      if (existingCompletion) {
+        // 已经完成过该作品，不重复触发
+        return;
+      }
+
+      // 记录作品完成
+      await this.prisma.workCompletion.create({
+        data: {
+          userId,
+          workId,
+          completedAt: new Date(),
+        },
+      });
+
+      // 触发完本成就进度更新
+      await this.achievementUnlockService.triggerEvent(
+        AchievementEventType.WORK_COMPLETED,
+        userId,
+        1, // 每完成一部作品增加1
+      );
+
+      this.logger.log(
+        `Work completion recorded for user ${userId}: work ${workId}`,
+      );
+    } catch (error) {
+      // 完本检查失败不应影响阅读进度保存
+      this.logger.warn(
+        `Failed to check work completion: ${error}`,
+      );
+    }
   }
 }

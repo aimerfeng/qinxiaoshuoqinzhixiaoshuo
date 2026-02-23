@@ -31,6 +31,7 @@ import {
 } from './dto/index.js';
 import { ChapterStatus, ContentType } from '@prisma/client';
 import { ParagraphsService } from '../paragraphs/paragraphs.service.js';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
 
 /**
  * 章节服务
@@ -45,6 +46,7 @@ export class ChaptersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paragraphsService: ParagraphsService,
+    private readonly achievementProgressService: AchievementProgressService,
   ) {}
 
   /**
@@ -127,6 +129,12 @@ export class ChaptersService {
           chapter.id,
           content,
         );
+        
+        // 追踪字数成就进度（需求24.4.2）
+        await this.achievementProgressService.trackWordCount(authorId, wordCount);
+        
+        // 追踪连续更新成就进度（需求24.4.5）
+        await this.achievementProgressService.trackConsecutiveUpdate(authorId);
       }
 
       this.logger.log(
@@ -266,12 +274,23 @@ export class ChaptersService {
             chapterId,
             finalContent,
           );
+          
+          // 追踪字数成就进度（需求24.4.2）- 只追踪新增的字数
+          if (wordCountDiff > 0) {
+            await this.achievementProgressService.trackWordCount(authorId, wordCountDiff);
+          }
         } else if (!wasPublished) {
           await this.paragraphsService.createParagraphsForChapter(
             workId,
             chapterId,
             finalContent,
           );
+          
+          // 追踪字数成就进度（需求24.4.2）- 首次发布，追踪全部字数
+          await this.achievementProgressService.trackWordCount(authorId, newWordCount);
+          
+          // 追踪连续更新成就进度（需求24.4.5）- 首次发布章节
+          await this.achievementProgressService.trackConsecutiveUpdate(authorId);
         }
       } else if (wasPublished && !isNowPublished) {
         await this.paragraphsService.deleteParagraphsForChapter(chapterId);

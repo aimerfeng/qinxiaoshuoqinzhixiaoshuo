@@ -77,14 +77,27 @@ export class SearchController {
   }
 
   /**
-   * 删除用户搜索历史
-   * DELETE /api/v1/search/history/:id 或 DELETE /api/v1/search/history (删除全部)
+   * 删除所有用户搜索历史
+   * DELETE /api/v1/search/history
    */
-  @Delete('history/:id?')
+  @Delete('history')
   @UseGuards(JwtAuthGuard)
-  async deleteSearchHistory(
+  async deleteAllSearchHistory(
     @Request() req: any,
-    @Param('id') historyId?: string,
+  ): Promise<{ success: boolean }> {
+    await this.searchService.deleteSearchHistory(req.user.id);
+    return { success: true };
+  }
+
+  /**
+   * 删除单条用户搜索历史
+   * DELETE /api/v1/search/history/:id
+   */
+  @Delete('history/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteSearchHistoryById(
+    @Request() req: any,
+    @Param('id') historyId: string,
   ): Promise<{ success: boolean }> {
     await this.searchService.deleteSearchHistory(req.user.id, historyId);
     return { success: true };

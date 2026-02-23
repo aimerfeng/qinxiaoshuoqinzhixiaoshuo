@@ -7,6 +7,7 @@
 
 // 小说阅读器
 export { NovelReader } from './NovelReader';
+export { Wenku8NovelReader } from './Wenku8NovelReader';
 export { ReaderHeader } from './ReaderHeader';
 export { ReaderContent } from './ReaderContent';
 export { ReaderFooter } from './ReaderFooter';

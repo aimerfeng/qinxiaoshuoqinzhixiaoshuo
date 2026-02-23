@@ -4,6 +4,7 @@ import { MembershipApplicationService } from './application.service.js';
 import { MembershipController } from './membership.controller.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { RedisModule } from '../../redis/redis.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 /**
  * 会员系统模块
@@ -16,7 +17,7 @@ import { RedisModule } from '../../redis/redis.module.js';
  * - 会员审核（后续任务）
  */
 @Module({
-  imports: [PrismaModule, RedisModule],
+  imports: [PrismaModule, RedisModule, AuthModule],
   controllers: [MembershipController],
   providers: [ContributionService, MembershipApplicationService],
   exports: [ContributionService, MembershipApplicationService],

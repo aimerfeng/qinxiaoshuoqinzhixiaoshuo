@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
  * 支持软删除的模型列表
  * 这些模型都有 isDeleted 字段
  */
-const SOFT_DELETE_MODELS = [
+export const SOFT_DELETE_MODELS = [
   'Work',
   'Chapter',
   'Paragraph',
@@ -14,17 +14,20 @@ const SOFT_DELETE_MODELS = [
   'MangaPage',
 ] as const;
 
-type SoftDeleteModel = (typeof SOFT_DELETE_MODELS)[number];
+export type SoftDeleteModel = (typeof SOFT_DELETE_MODELS)[number];
 
 /**
  * 检查模型是否支持软删除
  */
-function isSoftDeleteModel(model: string): model is SoftDeleteModel {
+export function isSoftDeleteModel(model: string): model is SoftDeleteModel {
   return SOFT_DELETE_MODELS.includes(model as SoftDeleteModel);
 }
 
 /**
  * 软删除中间件参数
+ *
+ * 注意：Prisma 7.x 移除了 $use 中间件 API
+ * 此配置仅用于文档目的，实际软删除需要在查询时显式处理
  */
 export interface SoftDeleteMiddlewareOptions {
   /** 是否在查询时自动过滤已删除记录，默认 true */
@@ -33,106 +36,23 @@ export interface SoftDeleteMiddlewareOptions {
   convertDelete?: boolean;
 }
 
-/**
- * 创建软删除中间件
- *
- * 功能：
- * 1. 自动将 delete/deleteMany 操作转换为 update（设置 isDeleted = true）
- * 2. 自动在 findMany/findFirst/findUnique/count 查询中过滤已删除记录
- *
- * 使用方式：
- * ```typescript
- * const prisma = new PrismaClient();
- * prisma.$use(createSoftDeleteMiddleware());
- * ```
- *
- * 如需查询已删除记录，可以显式添加 where: { isDeleted: true }
- */
-export function createSoftDeleteMiddleware(
-  options: SoftDeleteMiddlewareOptions = {},
-): Prisma.Middleware {
-  const { autoFilter = true, convertDelete = true } = options;
-
-  return async (params, next) => {
-    const { model, action } = params;
-
-    // 只处理支持软删除的模型
-    if (!model || !isSoftDeleteModel(model)) {
-      return next(params);
-    }
-
-    // 处理删除操作 - 转换为软删除
-    if (convertDelete) {
-      if (action === 'delete') {
-        // 将 delete 转换为 update
-        params.action = 'update';
-        params.args['data'] = { isDeleted: true };
-        return next(params);
-      }
-
-      if (action === 'deleteMany') {
-        // 将 deleteMany 转换为 updateMany
-        params.action = 'updateMany';
-        if (params.args.data) {
-          params.args.data['isDeleted'] = true;
-        } else {
-          params.args['data'] = { isDeleted: true };
-        }
-        return next(params);
-      }
-    }
-
-    // 处理查询操作 - 自动过滤已删除记录
-    if (autoFilter) {
-      const queryActions = [
-        'findFirst',
-        'findFirstOrThrow',
-        'findMany',
-        'findUnique',
-        'findUniqueOrThrow',
-        'count',
-        'aggregate',
-        'groupBy',
-      ];
-
-      if (queryActions.includes(action)) {
-        // 检查是否已经显式指定了 isDeleted 条件
-        const where = params.args?.where;
-        const hasExplicitIsDeleted = where && 'isDeleted' in where;
-
-        // 如果没有显式指定，则自动添加 isDeleted: false 条件
-        if (!hasExplicitIsDeleted) {
-          if (!params.args) {
-            params.args = {};
-          }
-          if (!params.args.where) {
-            params.args.where = {};
-          }
-          params.args.where['isDeleted'] = false;
-        }
-      }
-
-      // 处理 update/updateMany - 确保不会更新已删除的记录
-      if (action === 'update' || action === 'updateMany') {
-        const where = params.args?.where;
-        const hasExplicitIsDeleted = where && 'isDeleted' in where;
-
-        if (!hasExplicitIsDeleted) {
-          if (!params.args.where) {
-            params.args.where = {};
-          }
-          params.args.where['isDeleted'] = false;
-        }
-      }
-    }
-
-    return next(params);
-  };
-}
+// 定义通用的上下文类型
+type PrismaModelContext = {
+  update: (args: unknown) => Promise<unknown>;
+  updateMany: (args: unknown) => Promise<unknown>;
+  findMany: (args: unknown) => Promise<unknown>;
+  $parent: Record<string, { delete: (args: unknown) => Promise<unknown> }>;
+  $name: string;
+};
 
 /**
  * 软删除扩展方法
  * 提供额外的软删除相关操作
+ *
+ * 使用方式：
+ * ```typescript
+ * const prisma = new PrismaClient().$extends(softDeleteExtension);
+ * ```
  */
 export const softDeleteExtension = Prisma.defineExtension({
   name: 'softDelete',
@@ -141,103 +61,126 @@ export const softDeleteExtension = Prisma.defineExtension({
       /**
        * 软删除单条记录
        */
-      async softDelete<T>(
+      softDelete<T>(
         this: T,
         where: Prisma.Args<T, 'update'>['where'],
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'update'>, 'update'>> {
-        const context = Prisma.getExtensionContext(this);
-        return (context as any).update({
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
+        return context.update({
           where,
           data: { isDeleted: true },
-        });
+        }) as Promise<Prisma.Result<T, Prisma.Args<T, 'update'>, 'update'>>;
       },
 
       /**
        * 软删除多条记录
        */
-      async softDeleteMany<T>(
+      softDeleteMany<T>(
         this: T,
         where: Prisma.Args<T, 'updateMany'>['where'],
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'updateMany'>, 'updateMany'>> {
-        const context = Prisma.getExtensionContext(this);
-        return (context as any).updateMany({
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
+        return context.updateMany({
           where,
           data: { isDeleted: true },
-        });
+        }) as Promise<
+          Prisma.Result<T, Prisma.Args<T, 'updateMany'>, 'updateMany'>
+        >;
       },
 
       /**
        * 恢复软删除的记录
        */
-      async restore<T>(
+      restore<T>(
         this: T,
         where: Prisma.Args<T, 'update'>['where'],
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'update'>, 'update'>> {
-        const context = Prisma.getExtensionContext(this);
-        return (context as any).update({
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
+        return context.update({
           where: { ...where, isDeleted: true },
           data: { isDeleted: false },
-        });
+        }) as Promise<Prisma.Result<T, Prisma.Args<T, 'update'>, 'update'>>;
       },
 
       /**
        * 恢复多条软删除的记录
        */
-      async restoreMany<T>(
+      restoreMany<T>(
         this: T,
         where: Prisma.Args<T, 'updateMany'>['where'],
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'updateMany'>, 'updateMany'>> {
-        const context = Prisma.getExtensionContext(this);
-        return (context as any).updateMany({
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
+        return context.updateMany({
           where: { ...where, isDeleted: true },
           data: { isDeleted: false },
-        });
+        }) as Promise<
+          Prisma.Result<T, Prisma.Args<T, 'updateMany'>, 'updateMany'>
+        >;
       },
 
       /**
        * 查找包括已删除的记录
        */
-      async findManyWithDeleted<T>(
+      findManyWithDeleted<T>(
         this: T,
         args?: Prisma.Args<T, 'findMany'>,
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'findMany'>, 'findMany'>> {
-        const context = Prisma.getExtensionContext(this);
-        const newArgs = { ...args };
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
+        const newArgs = { ...args } as { where?: Record<string, unknown> };
         if (newArgs.where) {
           // 移除 isDeleted 过滤条件
-          delete (newArgs.where as any).isDeleted;
+          delete newArgs.where.isDeleted;
         }
-        return (context as any).findMany(newArgs);
+        return context.findMany(newArgs) as Promise<
+          Prisma.Result<T, Prisma.Args<T, 'findMany'>, 'findMany'>
+        >;
       },
 
       /**
        * 仅查找已删除的记录
        */
-      async findManyDeleted<T>(
+      findManyDeleted<T>(
         this: T,
         args?: Prisma.Args<T, 'findMany'>,
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'findMany'>, 'findMany'>> {
-        const context = Prisma.getExtensionContext(this);
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
         const newArgs = {
           ...args,
-          where: { ...args?.where, isDeleted: true },
+          where: { ...(args?.where as object), isDeleted: true },
         };
-        return (context as any).findMany(newArgs);
+        return context.findMany(newArgs) as Promise<
+          Prisma.Result<T, Prisma.Args<T, 'findMany'>, 'findMany'>
+        >;
       },
 
       /**
        * 永久删除（硬删除）
        */
-      async hardDelete<T>(
+      hardDelete<T>(
         this: T,
         where: Prisma.Args<T, 'delete'>['where'],
       ): Promise<Prisma.Result<T, Prisma.Args<T, 'delete'>, 'delete'>> {
-        const context = Prisma.getExtensionContext(this);
+        const context = Prisma.getExtensionContext(
+          this,
+        ) as unknown as PrismaModelContext;
         // 使用 $executeRaw 或直接调用原始 delete
         // 注意：这会绕过软删除中间件
-        return (context as any).$parent[context.$name as string].delete({
-          where,
-        });
+        const modelName = context.$name;
+        return context.$parent[modelName].delete({ where }) as Promise<
+          Prisma.Result<T, Prisma.Args<T, 'delete'>, 'delete'>
+        >;
       },
     },
   },

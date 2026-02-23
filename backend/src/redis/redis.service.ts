@@ -276,6 +276,22 @@ export class RedisService implements OnModuleDestroy {
     return this.redis.llen(key);
   }
 
+  /**
+   * 修剪列表，只保留指定范围内的元素
+   */
+  async ltrim(key: string, start: number, stop: number): Promise<'OK'> {
+    return this.redis.ltrim(key, start, stop);
+  }
+
+  // ==================== 键操作 ====================
+
+  /**
+   * 按模式查找键
+   */
+  async keys(pattern: string): Promise<string[]> {
+    return this.redis.keys(pattern);
+  }
+
   // ==================== 清理 ====================
 
   async onModuleDestroy(): Promise<void> {

@@ -198,4 +198,38 @@ export class ReaderController {
     const userId = req.user.userId as string;
     return this.readerService.getReadingSettings(userId);
   }
+
+  // ==================== Wenku8 内容 API ====================
+
+  /**
+   * 获取 Wenku8 章节内容
+   * GET /api/v1/reader/wenku8/:novelId/chapters/:chapterId
+   */
+  @Get('reader/wenku8/:novelId/chapters/:chapterId')
+  @UseGuards(OptionalJwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getWenku8ChapterContent(
+    @Param('novelId') novelId: string,
+    @Param('chapterId') chapterId: string,
+    @Request() req: any,
+  ): Promise<ChapterContentResponseDto> {
+    const userId = req.user?.userId as string | undefined;
+    return this.readerService.getWenku8ChapterContent(novelId, chapterId, userId);
+  }
+
+  /**
+   * 获取 Wenku8 章节目录
+   * GET /api/v1/reader/wenku8/:novelId/chapters
+   */
+  @Get('reader/wenku8/:novelId/chapters')
+  @UseGuards(OptionalJwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getWenku8ChapterList(
+    @Param('novelId') novelId: string,
+    @Request() req: any,
+  ): Promise<ChapterListResponseDto> {
+    const userId = req.user?.userId as string | undefined;
+    return this.readerService.getWenku8ChapterList(novelId, userId);
+  }
+
 }

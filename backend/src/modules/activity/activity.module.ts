@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ActivityService } from './activity.service.js';
 import { ActivityController } from './activity.controller.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 /**
  * 活动模块
@@ -20,7 +21,7 @@ import { PrismaModule } from '../../prisma/prisma.module.js';
  * - 活动审核 API (任务16.1.6)
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [ActivityController],
   providers: [ActivityService],
   exports: [ActivityService],

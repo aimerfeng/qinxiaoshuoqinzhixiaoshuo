@@ -14,13 +14,13 @@ export class CreateQuoteDto {
   @IsString()
   @IsUUID()
   @IsNotEmpty({ message: 'cardId 不能为空' })
-  cardId: string;
+  cardId!: string;
 }
 
 /**
  * 创建引用响应 DTO
  */
-export class CreateQuoteResponseDto {
+export interface CreateQuoteResponseDto {
   /**
    * 创建的引用记录 ID
    */

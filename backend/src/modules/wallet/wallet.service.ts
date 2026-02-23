@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   DAILY_CLAIM_AMOUNTS,
@@ -34,7 +35,10 @@ import {
  */
 @Injectable()
 export class WalletService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   /**
    * 获取或创建用户钱包
@@ -587,6 +591,9 @@ export class WalletService {
       };
     });
 
+    // 触发打赏成就事件
+    this.emitTipAchievementEvents(fromUserId, toUserId);
+
     return {
       success: true,
       amount,
@@ -594,6 +601,32 @@ export class WalletService {
       tipRecordId: result.tipRecordId,
       message: `成功打赏 ${amount} 零芥子`,
     };
+  }
+
+  /**
+   * 触发打赏成就事件
+   * 
+   * 需求24.5.4: 打赏成就（给予/获得）
+   * 
+   * 在打赏成功后调用此方法，触发成就事件
+   * 
+   * @param fromUserId 打赏者ID
+   * @param toUserId 被打赏者ID
+   */
+  private emitTipAchievementEvents(fromUserId: string, toUserId: string): void {
+    // 触发打赏给予成就事件
+    this.eventEmitter.emit('achievement.tip_given', {
+      userId: fromUserId,
+      eventType: 'achievement.tip_given',
+      value: 1,
+    });
+
+    // 触发打赏获得成就事件
+    this.eventEmitter.emit('achievement.tip_received', {
+      userId: toUserId,
+      eventType: 'achievement.tip_received',
+      value: 1,
+    });
   }
 
   // ==================== 交易记录相关方法 ====================
@@ -623,7 +656,7 @@ export class WalletService {
     // 构建查询条件
     const where: {
       walletId: string;
-      type?: string;
+      type?: typeof query.type;
       createdAt?: { gte?: Date; lte?: Date };
     } = {
       walletId: wallet.id,

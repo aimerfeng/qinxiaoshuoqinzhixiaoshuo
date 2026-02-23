@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorksService } from './works.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
 import { ContentType, WorkStatus, ChapterStatus } from '@prisma/client';
 import {
   InternalServerErrorException,
@@ -61,6 +62,10 @@ describe('WorksService', () => {
     },
   };
 
+  const mockAchievementProgressService = {
+    trackWorkPublishCount: jest.fn().mockResolvedValue([]),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +73,10 @@ describe('WorksService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: AchievementProgressService,
+          useValue: mockAchievementProgressService,
         },
       ],
     }).compile();

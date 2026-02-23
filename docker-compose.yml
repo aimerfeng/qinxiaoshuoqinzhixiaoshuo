@@ -10,7 +10,7 @@
 #   View logs:           docker-compose logs -f [service_name]
 #   Reset data:          docker-compose down -v
 
-version: '3.8'
+name: project-anima
 
 services:
   # ===========================================
@@ -89,6 +89,31 @@ services:
     networks:
       - project-anima-network
 
+  # ===========================================
+  # Lightnovel Crawler - 轻小说爬虫服务
+  # ===========================================
+  # 支持 460+ 轻小说源，提供 REST API
+  lncrawl:
+    build:
+      context: ./docker/lncrawl
+      dockerfile: Dockerfile
+    container_name: project-anima-lncrawl
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    volumes:
+      - lncrawl_data:/data
+    environment:
+      - LNCRAWL_OUTPUT_PATH=/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - project-anima-network
+
 # ===========================================
 # Persistent Volumes
 # ===========================================
@@ -102,6 +127,9 @@ volumes:
   minio_data:
     driver: local
     name: project-anima-minio-data
+  lncrawl_data:
+    driver: local
+    name: project-anima-lncrawl-data
 
 # ===========================================
 # Network Configuration

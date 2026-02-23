@@ -34,28 +34,63 @@ model User {
   memberLevel       MemberLevel @default(REGULAR) @map("member_level")
   contributionScore Int         @default(0) @map("contribution_score")
 
+  // 阅读统计字段
+  totalReadingMinutes Int @default(0) @map("total_reading_minutes") // 累计阅读时长（分钟）
+
+  // 连续阅读统计字段 (需求24.3.3)
+  lastReadDate         DateTime? @map("last_read_date") // 最后阅读日期
+  currentReadingStreak Int       @default(0) @map("current_reading_streak") // 当前连续阅读天数
+  longestReadingStreak Int       @default(0) @map("longest_reading_streak") // 最长连续阅读天数
+
+  // 连续更新统计字段 (需求24.4.5)
+  lastUpdateDate      DateTime? @map("last_update_date") // 最后更新日期（发布章节）
+  currentUpdateStreak Int       @default(0) @map("current_update_streak") // 当前连续更新天数
+  longestUpdateStreak Int       @default(0) @map("longest_update_streak") // 最长连续更新天数
+
   // Relations
-  profile             UserProfile?
-  followers           Follow[]    @relation("UserFollowing")  // 关注我的人
-  following           Follow[]    @relation("UserFollowers")  // 我关注的人
-  refreshTokens       RefreshToken[]
-  works               Work[]
-  chapters            Chapter[]
-  cards               Card[]
-  comments            Comment[]
-  likes               Like[]
-  readingProgress     ReadingProgress[]
-  readingSettings     ReadingSettings?
-  notifications       Notification[]
-  deviceFingerprints  DeviceFingerprint[]
-  danmakus            Danmaku[]
-  readingList         ReadingListItem[]
-  contributionRecords ContributionRecord[]
-  memberApplications  MemberApplication[]
-  wallet              Wallet?
-  createdActivities   Activity[]              @relation("ActivityCreator")
+  profile                UserProfile?
+  followers              Follow[]                @relation("UserFollowing") // 关注我的人
+  following              Follow[]                @relation("UserFollowers") // 我关注的人
+  refreshTokens          RefreshToken[]
+  works                  Work[]
+  chapters               Chapter[]
+  cards                  Card[]
+  comments               Comment[]
+  likes                  Like[]
+  readingProgress        ReadingProgress[]
+  readingSettings        ReadingSettings?
+  workCompletions        WorkCompletion[]
+  notifications          Notification[]
+  deviceFingerprints     DeviceFingerprint[]
+  danmakus               Danmaku[]
+  readingList            ReadingListItem[]
+  contributionRecords    ContributionRecord[]
+  memberApplications     MemberApplication[]
+  wallet                 Wallet?
+  createdActivities      Activity[]              @relation("ActivityCreator")
   activityParticipations ActivityParticipation[]
-  activityRewards     ActivityReward[]
+  activityRewards        ActivityReward[]
+
+  // 私信系统关系
+  conversations ConversationParticipant[]
+  sentMessages  Message[]                 @relation("SentMessages")
+
+  // 黑名单系统关系
+  blockedUsers   UserBlacklist[] @relation("UserBlocking") // 我拉黑的人
+  blockedByUsers UserBlacklist[] @relation("UserBlockedBy") // 拉黑我的人
+
+  // 用户设置关系
+  settings UserSettings?
+
+  // 类型探索关系 (需求24.3.5)
+  genresRead UserGenreRead[]
+
+  // 登录连续天数关系 (需求24.6.2)
+  loginStreak UserLoginStreak?
+
+  // 赛季排行榜系统关系 (需求25)
+  seasonRanks        SeasonRank[]
+  seasonLeaderboards SeasonLeaderboard[]
 
   @@index([memberLevel])
   @@map("users")
@@ -99,13 +134,24 @@ model DeviceFingerprint {
   fingerprint String
   userAgent   String?  @map("user_agent")
   ipAddress   String?  @map("ip_address")
+  deviceInfo  Json?    @map("device_info")
   lastSeenAt  DateTime @default(now()) @map("last_seen_at")
   createdAt   DateTime @default(now()) @map("created_at")
+
+  // 需求21: 登录设备管理 - 额外字段
+  deviceName String? @map("device_name") // 设备名称（如 "Chrome on Windows"）
+  deviceType String? @map("device_type") // 设备类型（desktop/mobile/tablet）
+  browser    String? // 浏览器名称
+  os         String? // 操作系统
+  location   String? // 地理位置（基于IP）
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, fingerprint])
+  @@index([fingerprint])
+  @@index([ipAddress])
+  @@index([userId])
   @@map("device_fingerprints")
 }
 
@@ -137,6 +183,7 @@ model Work {
   chapters         Chapter[]
   tags             WorkTag[]
   readingListItems ReadingListItem[]
+  completions      WorkCompletion[]
 
   @@index([authorId])
   @@index([status])
@@ -356,6 +403,62 @@ model ReadingSettings {
   @@map("reading_settings")
 }
 
+// 作品完成记录模型 - 记录用户完成阅读的作品
+// 需求24.3.4: 完本成就（初尝完结→完本狂魔）
+model WorkCompletion {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  workId      String   @map("work_id")
+  completedAt DateTime @default(now()) @map("completed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workId])
+  @@index([userId])
+  @@index([workId])
+  @@map("work_completions")
+}
+
+// 用户类型阅读记录模型 - 记录用户阅读过的作品类型/标签
+// 需求24.3.5: 类型探索成就（类型新手→全类型通）
+model UserGenreRead {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  tagId       String   @map("tag_id")
+  firstReadAt DateTime @default(now()) @map("first_read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tagId])
+  @@index([userId])
+  @@index([tagId])
+  @@map("user_genre_reads")
+}
+
+// 需求24.6.2: 隐藏成就（全勤王）- 用户登录连续天数记录
+model UserLoginStreak {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  currentStreak Int      @default(0) @map("current_streak") // 当前连续登录天数
+  longestStreak Int      @default(0) @map("longest_streak") // 历史最长连续登录天数
+  lastLoginDate DateTime @map("last_login_date") // 最后登录日期
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([lastLoginDate])
+  @@map("user_login_streaks")
+}
+
 // ==================== Tags ====================
 
 model Tag {
@@ -367,7 +470,8 @@ model Tag {
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
-  works WorkTag[]
+  works     WorkTag[]
+  userReads UserGenreRead[]
 
   @@map("tags")
 }
@@ -743,8 +847,8 @@ model Activity {
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  creator        User                    @relation("ActivityCreator", fields: [creatorId], references: [id])
-  participations ActivityParticipation[]
+  creator         User                    @relation("ActivityCreator", fields: [creatorId], references: [id])
+  participations  ActivityParticipation[]
   activityRewards ActivityReward[]
 
   @@index([creatorId])
@@ -768,8 +872,8 @@ model ActivityParticipation {
   updatedAt     DateTime            @updatedAt @map("updated_at")
 
   // Relations
-  activity Activity        @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   rewards  ActivityReward[]
 
   @@unique([activityId, userId]) // 每个用户只能参与一次同一活动
@@ -886,21 +990,966 @@ model TipRecord {
   @@map("tip_records")
 }
 
+// ==================== 内容举报系统 (Content Report System) ====================
+
+// 举报状态枚举
+enum ReportStatus {
+  PENDING // 待审核
+  REVIEWING // 审核中（已领取）
+  APPROVED // 已通过（违规确认）
+  REJECTED // 已拒绝（举报无效）
+  ARCHIVED // 已归档
+}
+
+// 举报目标类型枚举
+enum ReportTargetType {
+  WORK // 作品
+  CHAPTER // 章节
+  CARD // 广场卡片
+  COMMENT // 评论
+  DANMAKU // 弹幕
+  USER // 用户
+}
+
+// 举报原因枚举
+enum ReportReason {
+  SPAM // 垃圾内容
+  HARASSMENT // 骚扰
+  INAPPROPRIATE // 不当内容
+  COPYRIGHT // 侵权
+  MISINFORMATION // 虚假信息
+  VIOLENCE // 暴力内容
+  HATE_SPEECH // 仇恨言论
+  OTHER // 其他
+}
+
+// 审核处理动作枚举
+enum ModerationAction {
+  DELETE_CONTENT // 删除内容
+  WARN_USER // 警告用户
+  BAN_USER // 封禁用户
+  DISMISS // 驳回举报
+}
+
+// 内容举报模型
+model ContentReport {
+  id          String            @id @default(uuid())
+  reporterId  String            @map("reporter_id") // 举报者ID
+  targetType  ReportTargetType  @map("target_type") // 举报目标类型
+  targetId    String            @map("target_id") // 举报目标ID
+  reason      ReportReason // 举报原因
+  description String?           @db.VarChar(500) // 详细描述
+  evidence    String[]          @default([]) // 证据（截图URL等）
+  status      ReportStatus      @default(PENDING) // 举报状态
+  reviewerId  String?           @map("reviewer_id") // 审核员ID
+  reviewNote  String?           @map("review_note") // 审核备注
+  action      ModerationAction? // 处理动作
+  reviewedAt  DateTime?         @map("reviewed_at") // 审核时间
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([reporterId])
+  @@index([targetType, targetId])
+  @@index([status])
+  @@index([reviewerId])
+  @@index([createdAt])
+  @@map("content_reports")
+}
+
 // ==================== 关注系统 (Follow System) ====================
 
 // 关注关系模型 - 用户之间的关注关系
 model Follow {
   id          String   @id @default(uuid())
-  followerId  String   @map("follower_id")   // 关注者（发起关注的人）
-  followingId String   @map("following_id")  // 被关注者（被关注的人）
+  followerId  String   @map("follower_id") // 关注者（发起关注的人）
+  followingId String   @map("following_id") // 被关注者（被关注的人）
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
   follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
   following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
 
-  @@unique([followerId, followingId])  // 每对用户只能有一条关注记录
+  @@unique([followerId, followingId]) // 每对用户只能有一条关注记录
   @@index([followerId])
   @@index([followingId])
   @@map("follows")
+}
+
+// ==================== 风控告警系统 (Risk Alert System) ====================
+
+// 告警类型枚举
+enum RiskAlertType {
+  MULTI_ACCOUNT_DETECTED // 同设备/IP多账户
+  SUSPICIOUS_TRANSACTION // 可疑交易模式
+  RATE_LIMIT_EXCEEDED // 频率限制违规
+  CIRCULAR_TRANSFER // 循环转账检测
+  CONCENTRATED_RECEIPTS // 新账户集中收币
+  ACCOUNT_CLUSTER // 可疑账户集群
+}
+
+// 告警严重程度枚举
+enum RiskAlertSeverity {
+  CRITICAL // 需要立即处理
+  HIGH // 需要在数小时内处理
+  MEDIUM // 需要在数天内处理
+  LOW // 信息性告警
+}
+
+// 告警状态枚举
+enum RiskAlertStatus {
+  PENDING // 待处理
+  INVESTIGATING // 调查中
+  RESOLVED // 已解决
+  DISMISSED // 已忽略
+}
+
+// 风控告警模型
+model RiskAlert {
+  id              String            @id @default(uuid())
+  type            RiskAlertType // 告警类型
+  severity        RiskAlertSeverity // 严重程度
+  status          RiskAlertStatus   @default(PENDING) // 告警状态
+  title           String // 告警标题
+  description     String? // 详细描述
+  data            Json? // 告警相关数据
+  affectedUserIds String[]          @default([]) @map("affected_user_ids") // 受影响的用户ID列表
+  sourceService   String?           @map("source_service") // 触发告警的服务
+  assignedTo      String?           @map("assigned_to") // 分配给的管理员ID
+  resolvedAt      DateTime?         @map("resolved_at") // 解决时间
+  resolvedBy      String?           @map("resolved_by") // 解决人ID
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  notes RiskAlertNote[]
+
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("risk_alerts")
+}
+
+// 风控告警备注模型
+model RiskAlertNote {
+  id        String   @id @default(uuid())
+  alertId   String   @map("alert_id")
+  authorId  String   @map("author_id") // 备注作者ID
+  content   String // 备注内容
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  alert RiskAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([alertId])
+  @@index([authorId])
+  @@map("risk_alert_notes")
+}
+
+// ==================== 惩罚执行系统 (Punishment Execution System) ====================
+
+// 惩罚类型枚举
+enum PunishmentType {
+  WARNING // 警告（记录但不限制）
+  MUTE // 禁言（限制发言、评论、弹幕）
+  FEATURE_RESTRICT // 功能限制（限制特定功能如打赏、发布）
+  ACCOUNT_FREEZE // 账户冻结（暂停账户活动）
+  ACCOUNT_BAN // 账户封禁（永久封禁）
+}
+
+// 惩罚状态枚举
+enum PunishmentStatus {
+  ACTIVE // 生效中
+  EXPIRED // 已过期
+  REVOKED // 已撤销
+}
+
+// 用户惩罚模型
+model UserPunishment {
+  id           String           @id @default(uuid())
+  userId       String           @map("user_id") // 被惩罚的用户ID
+  type         PunishmentType // 惩罚类型
+  status       PunishmentStatus @default(ACTIVE) // 惩罚状态
+  reason       String // 惩罚原因
+  description  String? // 详细描述
+  alertId      String?          @map("alert_id") // 关联的风控告警ID
+  isPermanent  Boolean          @default(false) @map("is_permanent") // 是否永久
+  expiresAt    DateTime?        @map("expires_at") // 过期时间（临时惩罚）
+  revokedAt    DateTime?        @map("revoked_at") // 撤销时间
+  revokedBy    String?          @map("revoked_by") // 撤销人ID
+  revokeReason String?          @map("revoke_reason") // 撤销原因
+  createdBy    String           @map("created_by") // 创建人ID（管理员）
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([userId, status])
+  @@index([type])
+  @@index([status])
+  @@index([alertId])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("user_punishments")
+}
+
+// ==================== 私信系统 (Private Messaging System) ====================
+
+// 消息类型枚举
+enum MessageType {
+  TEXT // 文本消息
+  IMAGE // 图片消息
+  SYSTEM // 系统消息（如"用户加入"）
+}
+
+// 会话模型 - 代表用户之间的对话
+model Conversation {
+  id            String   @id @default(cuid())
+  lastMessageAt DateTime @default(now()) @map("last_message_at") // 最后消息时间
+  isGroup       Boolean  @default(false) @map("is_group") // 是否群聊（预留）
+  title         String? // 群聊标题（可选）
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+// 会话参与者模型 - 会话与用户的关联表
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  joinedAt       DateTime  @default(now()) @map("joined_at") // 加入时间
+  lastReadAt     DateTime? @map("last_read_at") // 最后阅读时间（用于未读消息追踪）
+  isAdmin        Boolean   @default(false) @map("is_admin") // 是否管理员（群聊用）
+  isMuted        Boolean   @default(false) @map("is_muted") // 是否静音通知
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+// 消息模型 - 单条消息
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  senderId       String      @map("sender_id")
+  content        String // 消息内容
+  messageType    MessageType @default(TEXT) @map("message_type") // 消息类型
+  isDeleted      Boolean     @default(false) @map("is_deleted") // 是否已删除
+  deletedAt      DateTime?   @map("deleted_at") // 删除时间
+  replyToId      String?     @map("reply_to_id") // 回复的消息ID（自引用）
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]    @relation("MessageReplies")
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+// ==================== 用户设置系统 (User Settings System) ====================
+
+// 个人资料可见性枚举
+enum ProfileVisibility {
+  PUBLIC // 公开
+  FOLLOWERS_ONLY // 仅关注者可见
+  PRIVATE // 仅自己可见
+}
+
+// 私信权限枚举
+enum DirectMessagePermission {
+  EVERYONE // 所有人
+  FOLLOWERS_ONLY // 仅关注者
+  NOBODY // 不接收
+}
+
+// 用户设置模型 - 存储用户的各项设置
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id")
+
+  // 账户安全设置
+  twoFactorEnabled         Boolean @default(false) @map("two_factor_enabled") // 两步验证
+  loginNotificationEnabled Boolean @default(true) @map("login_notification_enabled") // 登录通知
+
+  // 隐私设置
+  profileVisibility   ProfileVisibility       @default(PUBLIC) @map("profile_visibility") // 主页可见性
+  showOnlineStatus    Boolean                 @default(true) @map("show_online_status") // 显示在线状态
+  allowDirectMessages DirectMessagePermission @default(EVERYONE) @map("allow_direct_messages") // 私信权限
+  showReadingActivity Boolean                 @default(true) @map("show_reading_activity") // 显示阅读动态
+
+  // 通知设置
+  emailNotifications   Boolean @default(true) @map("email_notifications") // 邮件通知
+  pushNotifications    Boolean @default(true) @map("push_notifications") // 推送通知
+  commentNotifications Boolean @default(true) @map("comment_notifications") // 评论通知
+  likeNotifications    Boolean @default(true) @map("like_notifications") // 点赞通知
+  followNotifications  Boolean @default(true) @map("follow_notifications") // 关注通知
+  mentionNotifications Boolean @default(true) @map("mention_notifications") // @提及通知
+  updateNotifications  Boolean @default(true) @map("update_notifications") // 更新通知
+
+  // 阅读设置
+  defaultFontSize    Int     @default(16) @map("default_font_size") // 默认字体大小
+  defaultLineHeight  Float   @default(1.8) @map("default_line_height") // 默认行高
+  defaultTheme       String  @default("light") @map("default_theme") // 默认阅读主题
+  autoNightMode      Boolean @default(false) @map("auto_night_mode") // 自动夜间模式
+  nightModeStartTime String? @map("night_mode_start_time") // 夜间模式开始时间 (e.g., "22:00")
+  nightModeEndTime   String? @map("night_mode_end_time") // 夜间模式结束时间 (e.g., "06:00")
+
+  // 主题设置
+  theme       String  @default("system") // 系统主题 (system/light/dark)
+  accentColor String? @map("accent_color") // 自定义强调色
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ==================== 用户黑名单系统 (User Blacklist System) ====================
+
+// 用户黑名单模型 - 用户之间的拉黑关系
+model UserBlacklist {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id") // 拉黑者（发起拉黑的人）
+  blockedUserId String   @map("blocked_user_id") // 被拉黑者
+  reason        String? // 拉黑原因（可选）
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user        User @relation("UserBlocking", fields: [userId], references: [id], onDelete: Cascade)
+  blockedUser User @relation("UserBlockedBy", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blockedUserId]) // 每对用户只能有一条拉黑记录
+  @@index([userId])
+  @@index([blockedUserId])
+  @@map("user_blacklists")
+}
+
+// ==================== 新手引导系统 (Onboarding System) ====================
+
+// 引导类型枚举
+enum GuideType {
+  REGISTRATION // 注册引导 - 完善资料、选择兴趣标签
+  HOMEPAGE // 首页引导 - 介绍广场、推荐流、搜索入口
+  READER // 阅读引导 - 介绍段落引用、阅读设置、章节导航
+  CREATION // 创作引导 - 介绍编辑功能、发布流程、数据查看
+}
+
+// 引导进度模型
+model OnboardingProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  guideType   GuideType @map("guide_type")
+  currentStep Int       @default(0) @map("current_step")
+  totalSteps  Int       @map("total_steps")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, guideType]) // 每个用户每种引导类型只有一条记录
+  @@index([userId])
+  @@index([guideType])
+  @@map("onboarding_progress")
+}
+
+// ==================== 主题皮肤系统 (Theme System) ====================
+
+// 主题解锁条件类型枚举
+enum ThemeUnlockType {
+  DEFAULT // 默认可用
+  MEMBERSHIP // 会员等级解锁
+  ACHIEVEMENT // 成就解锁
+  PURCHASE // 购买解锁
+  EVENT // 活动限定
+  CREATOR // 创作者定制
+}
+
+// 主题模型 - 存储系统预设主题配置
+model Theme {
+  id           String  @id @default(uuid())
+  name         String  @unique // 主题标识符（如 starry-fantasy, sakura-story）
+  displayName  String  @map("display_name") // 显示名称（如 星空幻想、樱花物语）
+  description  String? // 主题描述
+  previewImage String? @map("preview_image") // 预览图URL
+
+  // 颜色配置（JSON格式）
+  // 包含: primary, primaryGradient, accentPink, accentGreen, bgPrimary, bgSecondary, bgCard, textPrimary, textSecondary, textMuted, border, shadowCard, shadowHover
+  colors Json
+
+  // 主题属性
+  isDefault    Boolean @default(false) @map("is_default") // 是否默认主题
+  isPremium    Boolean @default(false) @map("is_premium") // 是否高级主题
+  isUnlockable Boolean @default(false) @map("is_unlockable") // 是否需要解锁
+
+  // 解锁条件（JSON格式）
+  // 包含: type (ThemeUnlockType), requirement (具体要求，如会员等级、成就ID、价格等)
+  unlockCondition Json?           @map("unlock_condition")
+  unlockType      ThemeUnlockType @default(DEFAULT) @map("unlock_type")
+
+  // 排序和状态
+  sortOrder Int     @default(0) @map("sort_order") // 排序顺序
+  isActive  Boolean @default(true) @map("is_active") // 是否启用
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userPreferences UserThemePreference[]
+
+  @@index([name])
+  @@index([isDefault])
+  @@index([isPremium])
+  @@index([unlockType])
+  @@index([sortOrder])
+  @@map("themes")
+}
+
+// 用户主题偏好模型 - 存储用户的主题选择和自定义配置
+model UserThemePreference {
+  id      String @id @default(uuid())
+  userId  String @map("user_id")
+  themeId String @map("theme_id")
+
+  // 用户自定义覆盖（JSON格式）
+  // 允许用户对主题进行微调，如自定义强调色等
+  customizations Json?
+
+  // 状态
+  isActive   Boolean  @default(false) @map("is_active") // 是否当前激活的主题
+  unlockedAt DateTime @default(now()) @map("unlocked_at") // 解锁时间
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  theme Theme @relation(fields: [themeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, themeId]) // 每个用户对每个主题只有一条记录
+  @@index([userId])
+  @@index([themeId])
+  @@index([userId, isActive])
+  @@map("user_theme_preferences")
+}
+
+// ==================== 成就系统 (Achievement System) ====================
+
+// 成就类别枚举
+enum AchievementCategory {
+  READING // 阅读成就（初窥门径→阅尽天下）
+  CREATION // 创作成就（新人作者→千万传奇）
+  SOCIAL // 社交成就（初有粉丝→互动之王）
+  COLLECTION // 收藏成就
+  SPECIAL // 特殊成就（元老用户/深夜书虫/彩蛋猎人）
+  SEASONAL // 赛季成就
+  EVENT // 活动成就
+}
+
+// 成就等级枚举
+enum AchievementTier {
+  BRONZE // 青铜
+  SILVER // 白银
+  GOLD // 黄金
+  PLATINUM // 铂金
+  DIAMOND // 钻石
+  LEGENDARY // 传说
+}
+
+// 成就奖励类型枚举
+enum AchievementRewardType {
+  TOKENS // 零芥子代币
+  BADGE // 徽章
+  TITLE // 称号
+  AVATAR_FRAME // 头像框
+  THEME // 主题皮肤
+}
+
+// 成就定义模型 - 存储所有成就的定义
+model Achievement {
+  id          String              @id @default(uuid())
+  name        String              @unique // 成就标识符（如 reading_beginner, creation_master）
+  displayName String              @map("display_name") // 显示名称（如 初窥门径、创作大师）
+  description String // 成就描述
+  category    AchievementCategory // 成就类别
+  tier        AchievementTier // 成就等级
+
+  // 图标资源
+  iconUrl  String? @map("icon_url") // 成就图标URL
+  badgeUrl String? @map("badge_url") // 成就徽章URL
+
+  // 达成条件
+  targetValue Int @default(1) @map("target_value") // 目标值（如阅读100章节、发布10部作品）
+
+  // 奖励配置
+  rewardType  AchievementRewardType @map("reward_type") // 奖励类型
+  rewardValue Json                  @map("reward_value") // 奖励详情（JSON格式：{amount: 100} 或 {badgeId: "xxx", title: "xxx"}）
+
+  // 成就属性
+  isHidden Boolean @default(false) @map("is_hidden") // 是否隐藏成就（问号占位）
+  isActive Boolean @default(true) @map("is_active") // 是否启用
+
+  // 排序
+  sortOrder Int @default(0) @map("sort_order") // 排序顺序
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@index([category])
+  @@index([tier])
+  @@index([isActive])
+  @@index([isHidden])
+  @@index([sortOrder])
+  @@map("achievements")
+}
+
+// 用户成就进度模型 - 存储用户的成就进度和解锁状态
+model UserAchievement {
+  id            String @id @default(uuid())
+  userId        String @map("user_id")
+  achievementId String @map("achievement_id")
+
+  // 进度追踪
+  currentProgress Int       @default(0) @map("current_progress") // 当前进度
+  isUnlocked      Boolean   @default(false) @map("is_unlocked") // 是否已解锁
+  unlockedAt      DateTime? @map("unlocked_at") // 解锁时间
+
+  // 奖励领取
+  isClaimed Boolean   @default(false) @map("is_claimed") // 是否已领取奖励
+  claimedAt DateTime? @map("claimed_at") // 领取时间
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId]) // 每个用户对每个成就只有一条记录
+  @@index([userId])
+  @@index([achievementId])
+  @@index([userId, isUnlocked])
+  @@index([userId, isClaimed])
+  @@map("user_achievements")
+}
+
+// ==================== 赛季排行榜系统 (Season Ranking System) ====================
+
+// 赛季状态枚举
+enum SeasonStatus {
+  UPCOMING // 即将开始
+  ACTIVE // 进行中
+  ENDED // 已结束
+  SETTLED // 已结算（奖励已发放）
+}
+
+// 赛季段位枚举（从低到高）
+enum SeasonTier {
+  NOVICE // 新秀
+  BRONZE // 青铜
+  SILVER // 白银
+  GOLD // 黄金
+  PLATINUM // 铂金
+  DIAMOND // 钻石
+  MASTER // 大师
+  GRANDMASTER // 宗师
+  KING // 王者
+}
+
+// 排行榜类别枚举
+enum LeaderboardCategory {
+  READING // 阅读榜
+  CREATION // 创作榜
+  SOCIAL // 社交榜
+  OVERALL // 综合榜
+}
+
+// 赛季模型 - 存储赛季基本信息
+model Season {
+  id           String       @id @default(uuid())
+  name         String // 赛季名称（如 "第一赛季"、"2024春季赛"）
+  description  String? // 赛季描述
+  seasonNumber Int          @unique @map("season_number") // 赛季编号（1, 2, 3...）
+  status       SeasonStatus @default(UPCOMING) // 赛季状态
+  startDate    DateTime     @map("start_date") // 开始日期
+  endDate      DateTime     @map("end_date") // 结束日期
+  durationDays Int          @default(90) @map("duration_days") // 赛季时长（天）
+
+  // 赛季配置（JSON格式）
+  // 包含: 积分规则、段位阈值、奖励配置等
+  config Json?
+
+  // 软重置配置
+  softResetEnabled Boolean @default(true) @map("soft_reset_enabled") // 是否启用软重置
+  softResetRatio   Float   @default(0.5) @map("soft_reset_ratio") // 软重置比例（保留上赛季积分的比例）
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ranks            SeasonRank[]
+  leaderboards     SeasonLeaderboard[]
+  rewards          SeasonReward[]
+  userSeasonReward UserSeasonReward[]
+
+  @@index([status])
+  @@index([seasonNumber])
+  @@index([startDate])
+  @@index([endDate])
+  @@map("seasons")
+}
+
+// 赛季段位模型 - 存储用户在赛季中的段位信息
+model SeasonRank {
+  id       String     @id @default(uuid())
+  userId   String     @map("user_id")
+  seasonId String     @map("season_id")
+  tier     SeasonTier @default(NOVICE) // 当前段位
+  points   Int        @default(0) // 赛季总积分
+
+  // 段位变化追踪
+  previousTier SeasonTier? @map("previous_tier") // 上赛季段位（用于软重置）
+  peakTier     SeasonTier  @default(NOVICE) @map("peak_tier") // 本赛季最高段位
+  peakPoints   Int         @default(0) @map("peak_points") // 本赛季最高积分
+
+  // 积分明细（JSON格式）
+  // 包含: readingPoints, creationPoints, socialPoints
+  pointsBreakdown Json? @map("points_breakdown")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seasonId]) // 每个用户每个赛季只有一条记录
+  @@index([userId])
+  @@index([seasonId])
+  @@index([tier])
+  @@index([points(sort: Desc)])
+  @@index([seasonId, tier])
+  @@index([seasonId, points(sort: Desc)])
+  @@map("season_ranks")
+}
+
+// 赛季排行榜模型 - 存储各类别排行榜数据
+model SeasonLeaderboard {
+  id       String              @id @default(uuid())
+  userId   String              @map("user_id")
+  seasonId String              @map("season_id")
+  category LeaderboardCategory // 排行榜类别
+
+  score        Int  @default(0) // 该类别得分
+  rank         Int? // 当前排名（可能为空，表示未上榜）
+  previousRank Int? @map("previous_rank") // 上次排名（用于显示排名变化）
+
+  // 排名变化追踪
+  peakRank  Int? @map("peak_rank") // 本赛季最高排名
+  peakScore Int  @default(0) @map("peak_score") // 本赛季最高得分
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seasonId, category]) // 每个用户每个赛季每个类别只有一条记录
+  @@index([userId])
+  @@index([seasonId])
+  @@index([category])
+  @@index([rank])
+  @@index([score(sort: Desc)])
+  @@index([seasonId, category])
+  @@index([seasonId, category, score(sort: Desc)])
+  @@index([seasonId, category, rank])
+  @@map("season_leaderboards")
+}
+
+// ==================== 赛季奖励系统 (Season Reward System) ====================
+
+// 赛季奖励类型枚举
+enum SeasonRewardType {
+  TOKENS // 零芥子代币
+  BADGE // 徽章
+  TITLE // 称号
+  AVATAR_FRAME // 头像框
+}
+
+// 用户赛季奖励状态枚举
+enum UserSeasonRewardStatus {
+  PENDING // 待领取
+  CLAIMED // 已领取
+  EXPIRED // 已过期
+}
+
+// 赛季奖励定义模型 - 存储每个段位的奖励配置
+model SeasonReward {
+  id          String           @id @default(uuid())
+  seasonId    String           @map("season_id")
+  tier        SeasonTier // 对应的段位
+  rewardType  SeasonRewardType @map("reward_type") // 奖励类型
+  rewardValue Json             @map("reward_value") // 奖励详情（JSON格式：{amount: 100} 或 {badgeId: "xxx", titleId: "xxx", frameId: "xxx"}）
+  description String? // 奖励描述
+  sortOrder   Int              @default(0) @map("sort_order") // 排序顺序（同一段位可能有多个奖励）
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  season           Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  userSeasonReward UserSeasonReward[]
+
+  @@index([seasonId])
+  @@index([tier])
+  @@index([seasonId, tier])
+  @@index([sortOrder])
+  @@map("season_rewards")
+}
+
+// 用户赛季奖励记录模型 - 存储用户领取的赛季奖励
+model UserSeasonReward {
+  id        String                 @id @default(uuid())
+  userId    String                 @map("user_id")
+  seasonId  String                 @map("season_id")
+  rewardId  String                 @map("reward_id")
+  status    UserSeasonRewardStatus @default(PENDING) // 奖励状态
+  claimedAt DateTime?              @map("claimed_at") // 领取时间
+  expiresAt DateTime?              @map("expires_at") // 过期时间（可选）
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @updatedAt @map("updated_at")
+
+  // Relations
+  reward       Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonReward SeasonReward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rewardId]) // 每个用户对每个奖励只有一条记录
+  @@index([userId])
+  @@index([seasonId])
+  @@index([rewardId])
+  @@index([status])
+  @@index([userId, seasonId])
+  @@index([userId, status])
+  @@map("user_season_rewards")
+}
+
+// ==================== 限时活动系统 (Limited-Time Event System) ====================
+// 需求26: 限时活动系统 - 与社区活动系统(Activity)不同，这是管理员创建的时间限定活动
+
+// 限时活动类型枚举
+enum LimitedEventType {
+  FESTIVAL // 节日活动（春节、中秋、圣诞等）
+  ANNIVERSARY // 周年庆活动
+  THEME // 主题活动（特定主题的限时活动）
+  FLASH // 闪电活动（短期高强度活动）
+}
+
+// 限时活动状态枚举
+enum LimitedEventStatus {
+  UPCOMING // 即将开始
+  ACTIVE // 进行中
+  ENDED // 已结束
+}
+
+// 限时活动任务类型枚举
+enum LimitedEventTaskType {
+  READ_CHAPTERS // 阅读章节
+  CREATE_CONTENT // 创作内容（发布章节/作品）
+  SOCIAL_INTERACTION // 社交互动（点赞/评论/引用）
+  DAILY_LOGIN // 每日登录
+  SHARE_CONTENT // 分享内容
+  COLLECT_ITEMS // 收集道具（活动专属）
+  COMPLETE_ACHIEVEMENT // 完成成就
+  TIP_CREATORS // 打赏创作者
+  INVITE_FRIENDS // 邀请好友
+  CUSTOM // 自定义任务
+}
+
+// 限时活动奖励类型枚举
+enum LimitedEventRewardType {
+  TOKENS // 零芥子代币
+  BADGE // 徽章
+  TITLE // 称号
+  AVATAR_FRAME // 头像框
+  THEME // 主题皮肤
+  EXPERIENCE // 经验值
+  EXCLUSIVE_ITEM // 活动专属道具
+}
+
+// 限时活动模型 - 主活动定义
+model LimitedEvent {
+  id            String             @id @default(uuid())
+  name          String             @db.VarChar(50) // 活动名称
+  description   String?            @db.VarChar(1000) // 活动描述
+  coverImageUrl String?            @map("cover_image_url") // 活动封面图URL
+  eventType     LimitedEventType   @map("event_type") // 活动类型
+  status        LimitedEventStatus @default(UPCOMING) // 活动状态
+  startDate     DateTime           @map("start_date") // 开始日期
+  endDate       DateTime           @map("end_date") // 结束日期
+  isPublished   Boolean            @default(false) @map("is_published") // 是否已发布
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  tasks                 LimitedEventTask[]
+  milestones            LimitedEventMilestone[]
+  userParticipations    LimitedEventParticipation[]
+  userTaskProgress      LimitedEventUserTaskProgress[]
+  userMilestoneProgress LimitedEventUserMilestoneProgress[]
+
+  @@index([eventType])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([isPublished])
+  @@index([status, isPublished])
+  @@map("limited_events")
+}
+
+// 限时活动任务模型 - 活动内的任务定义
+model LimitedEventTask {
+  id          String                 @id @default(uuid())
+  eventId     String                 @map("event_id")
+  name        String                 @db.VarChar(100) // 任务名称
+  description String?                @db.VarChar(500) // 任务描述
+  taskType    LimitedEventTaskType   @map("task_type") // 任务类型
+  targetValue Int                    @map("target_value") // 目标值（如阅读10章节）
+  rewardType  LimitedEventRewardType @map("reward_type") // 奖励类型
+  rewardValue Json                   @map("reward_value") // 奖励详情（JSON格式：{amount: 100} 或 {badgeId: "xxx"}）
+  sortOrder   Int                    @default(0) @map("sort_order") // 排序顺序
+  isRequired  Boolean                @default(false) @map("is_required") // 是否必须完成
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  // Relations
+  event        LimitedEvent                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userProgress LimitedEventUserTaskProgress[]
+
+  @@index([eventId])
+  @@index([taskType])
+  @@index([sortOrder])
+  @@index([eventId, sortOrder])
+  @@map("limited_event_tasks")
+}
+
+// 限时活动里程碑模型 - 活动里程碑奖励定义
+model LimitedEventMilestone {
+  id               String                 @id @default(uuid())
+  eventId          String                 @map("event_id")
+  name             String                 @db.VarChar(100) // 里程碑名称
+  description      String?                @db.VarChar(500) // 里程碑描述
+  requiredProgress Int                    @map("required_progress") // 需要完成的任务数量
+  rewardType       LimitedEventRewardType @map("reward_type") // 奖励类型
+  rewardValue      Json                   @map("reward_value") // 奖励详情（JSON格式）
+  sortOrder        Int                    @default(0) @map("sort_order") // 排序顺序
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  // Relations
+  event        LimitedEvent                        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userProgress LimitedEventUserMilestoneProgress[]
+
+  @@index([eventId])
+  @@index([sortOrder])
+  @@index([eventId, sortOrder])
+  @@map("limited_event_milestones")
+}
+
+// 用户限时活动参与记录模型 - 记录用户参与活动的状态
+model LimitedEventParticipation {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  eventId            String    @map("event_id")
+  joinedAt           DateTime  @default(now()) @map("joined_at") // 参与时间
+  completedTaskCount Int       @default(0) @map("completed_task_count") // 已完成任务数
+  lastActivityAt     DateTime? @map("last_activity_at") // 最后活动时间
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  event LimitedEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId]) // 每个用户每个活动只有一条参与记录
+  @@index([userId])
+  @@index([eventId])
+  @@index([userId, eventId])
+  @@map("limited_event_participations")
+}
+
+// 用户限时活动任务进度模型 - 记录用户的任务完成进度
+model LimitedEventUserTaskProgress {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  eventId         String    @map("event_id")
+  taskId          String    @map("task_id")
+  currentProgress Int       @default(0) @map("current_progress") // 当前进度
+  isCompleted     Boolean   @default(false) @map("is_completed") // 是否已完成
+  completedAt     DateTime? @map("completed_at") // 完成时间
+  isClaimed       Boolean   @default(false) @map("is_claimed") // 是否已领取奖励
+  claimedAt       DateTime? @map("claimed_at") // 领取时间
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  event LimitedEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  task  LimitedEventTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId]) // 每个用户每个任务只有一条进度记录
+  @@index([userId])
+  @@index([eventId])
+  @@index([taskId])
+  @@index([userId, eventId])
+  @@index([isCompleted])
+  @@index([isClaimed])
+  @@map("limited_event_user_task_progress")
+}
+
+// 用户限时活动里程碑进度模型 - 记录用户的里程碑完成状态
+model LimitedEventUserMilestoneProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  eventId     String    @map("event_id")
+  milestoneId String    @map("milestone_id")
+  isUnlocked  Boolean   @default(false) @map("is_unlocked") // 是否已解锁
+  unlockedAt  DateTime? @map("unlocked_at") // 解锁时间
+  isClaimed   Boolean   @default(false) @map("is_claimed") // 是否已领取奖励
+  claimedAt   DateTime? @map("claimed_at") // 领取时间
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  event     LimitedEvent          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  milestone LimitedEventMilestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, milestoneId]) // 每个用户每个里程碑只有一条进度记录
+  @@index([userId])
+  @@index([eventId])
+  @@index([milestoneId])
+  @@index([userId, eventId])
+  @@index([isUnlocked])
+  @@index([isClaimed])
+  @@map("limited_event_user_milestone_progress")
 }

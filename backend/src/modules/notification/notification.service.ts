@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, Prisma } from '@prisma/client';
 import {
   CreateNotificationDto,
   NotificationQueryDto,
@@ -34,7 +34,7 @@ export class NotificationService {
         type: dto.type,
         title: dto.title,
         content: dto.content,
-        data: dto.data || null,
+        data: dto.data as Prisma.InputJsonValue | undefined,
       },
     });
 
@@ -61,7 +61,7 @@ export class NotificationService {
         type,
         title,
         content,
-        data: data || null,
+        data: data as Prisma.InputJsonValue | undefined,
       })),
     });
 

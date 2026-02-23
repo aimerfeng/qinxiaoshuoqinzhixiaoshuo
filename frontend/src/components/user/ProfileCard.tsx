@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { UserAvatar } from './UserAvatar';
+import { SendMessageButton } from '@/components/message';
 import type { MemberLevel } from '@/types/membership';
 
 /**
@@ -86,7 +87,7 @@ function formatNumber(num: number): string {
  * - 渐变紫蓝主题色 (#6366F1 → #8B5CF6)
  */
 export function ProfileCard({
-  userId: _userId,
+  userId,
   username,
   displayName,
   avatar,
@@ -169,9 +170,15 @@ export function ProfileCard({
                     >
                       {isFollowing ? '已关注' : '关注'}
                     </Button>
-                    <Button variant="ghost" size="sm" className="rounded-xl">
-                      <MessageIcon className="h-4 w-4" />
-                    </Button>
+                    <SendMessageButton
+                      userId={userId}
+                      username={username}
+                      displayName={displayName}
+                      variant="ghost"
+                      size="sm"
+                      iconOnly
+                      className="rounded-xl"
+                    />
                   </>
                 )}
               </div>
@@ -308,22 +315,6 @@ function EditIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-      />
-    </svg>
-  );
-}
-
-/**
- * 消息图标
- */
-function MessageIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
       />
     </svg>
   );

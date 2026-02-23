@@ -71,7 +71,7 @@ export default function LoginPage() {
       });
 
       // Store tokens and user info
-      login(response.user, response.token, response.refreshToken);
+      login(response.user, response.accessToken, response.refreshToken);
 
       // Redirect to saved URL or default
       redirectAfterLogin();

@@ -3,6 +3,7 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationGateway } from './notification.gateway';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * 通知模块
@@ -15,7 +16,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
  * - 10.1.5 未读计数服务
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [NotificationController],
   providers: [NotificationService, NotificationGateway],
   exports: [NotificationService, NotificationGateway],

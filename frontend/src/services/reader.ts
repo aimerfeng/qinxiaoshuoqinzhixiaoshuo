@@ -91,3 +91,26 @@ export async function saveReadingSettings(
   });
   return response.data;
 }
+
+/**
+ * 获取 Wenku8 章节内容
+ * GET /api/v1/reader/wenku8/:novelId/chapters/:chapterId
+ */
+export async function getWenku8ChapterContent(
+  novelId: string,
+  chapterId: string
+): Promise<ChapterContentResponse> {
+  const response = await api.get<ChapterContentResponse>(
+    `/reader/wenku8/${novelId}/chapters/${chapterId}`
+  );
+  return response.data;
+}
+
+/**
+ * 获取 Wenku8 章节目录
+ * GET /api/v1/reader/wenku8/:novelId/chapters
+ */
+export async function getWenku8ChapterList(novelId: string): Promise<ChapterListResponse> {
+  const response = await api.get<ChapterListResponse>(`/reader/wenku8/${novelId}/chapters`);
+  return response.data;
+}

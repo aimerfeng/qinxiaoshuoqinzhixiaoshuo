@@ -3,15 +3,17 @@ import { WorksController } from './works.controller.js';
 import { WorksService } from './works.service.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { AuthModule } from '../auth/auth.module.js';
+import { AchievementModule } from '../achievement/achievement.module.js';
 
 /**
  * 作品模块
  * 提供作品管理功能
  *
  * 需求2: 作品管理与版本控制（类Git共创系统）
+ * 需求24.4.1: 发布作品成就集成
  */
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, AchievementModule],
   controllers: [WorksController],
   providers: [WorksService],
   exports: [WorksService],

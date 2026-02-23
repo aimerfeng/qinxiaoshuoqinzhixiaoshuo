@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User } from '@/types';
 import { STORAGE_KEYS } from '@/constants';
-import { authService, type AuthResponse } from '@/services/auth';
+import { authService } from '@/services/auth';
 
 interface AuthState {
   // State
@@ -20,9 +20,6 @@ interface AuthState {
   logout: () => void;
   setLoading: (isLoading: boolean) => void;
   setHydrated: (isHydrated: boolean) => void;
-
-  // Token refresh
-  refreshAccessToken: () => Promise<boolean>;
 
   // Initialize auth state (check if tokens are valid)
   initializeAuth: () => Promise<void>;
@@ -80,48 +77,12 @@ export const useAuthStore = create<AuthState>()(
       setHydrated: (isHydrated) => set({ isHydrated }),
 
       /**
-       * Refresh the access token using the refresh token
-       * Returns true if refresh was successful, false otherwise
-       */
-      refreshAccessToken: async () => {
-        const { refreshToken } = get();
-
-        if (!refreshToken) {
-          return false;
-        }
-
-        try {
-          const response: AuthResponse = await authService.refreshToken({
-            refreshToken,
-          });
-
-          set({
-            user: response.user,
-            token: response.token,
-            refreshToken: response.refreshToken,
-            isAuthenticated: true,
-          });
-
-          return true;
-        } catch {
-          // Refresh failed, clear auth state
-          set({
-            user: null,
-            token: null,
-            refreshToken: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
-          return false;
-        }
-      },
-
-      /**
        * Initialize auth state on app load
-       * Validates stored tokens and refreshes if needed
+       * 简化逻辑：如果有 user 和 token，直接信任存储的状态
+       * 不主动验证 token，让 API 请求时自动处理 401
        */
       initializeAuth: async () => {
-        const { token, refreshToken, isHydrated } = get();
+        const { token, refreshToken, isHydrated, user, isAuthenticated } = get();
 
         // Wait for hydration if not yet hydrated
         if (!isHydrated) {
@@ -134,38 +95,28 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        // If we have a token, try to get the user profile to validate it
-        if (token) {
-          try {
-            const user = await authService.getProfile();
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-            return;
-          } catch {
-            // Token might be expired, try to refresh
-          }
+        // If we already have user data and token, trust the stored state
+        // API interceptor will handle 401 and refresh token automatically
+        if (user && token && isAuthenticated) {
+          set({ isLoading: false });
+          return;
         }
 
-        // Try to refresh the token
-        if (refreshToken) {
-          const refreshed = await get().refreshAccessToken();
-          if (refreshed) {
-            set({ isLoading: false });
-            return;
-          }
+        // If we have token but no user data, this is an inconsistent state
+        // Clear it and let user re-login
+        if (token && !user) {
+          set({
+            user: null,
+            token: null,
+            refreshToken: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return;
         }
 
-        // All attempts failed, clear auth state
-        set({
-          user: null,
-          token: null,
-          refreshToken: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        // Default: mark as not loading
+        set({ isLoading: false });
       },
     }),
     {
@@ -178,7 +129,6 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // Called when the store has been rehydrated from localStorage
         if (state) {
           state.setHydrated(true);
         }
@@ -187,24 +137,15 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-/**
- * Hook to check if auth store has been hydrated from localStorage
- * Useful for SSR to avoid hydration mismatches
- */
 export const useAuthHydration = () => {
   const isHydrated = useAuthStore((state) => state.isHydrated);
   return isHydrated;
 };
 
-/**
- * Hook to get authentication status
- * Returns false during SSR and initial hydration to avoid mismatches
- */
 export const useIsAuthenticated = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isHydrated = useAuthStore((state) => state.isHydrated);
 
-  // During SSR or before hydration, always return false
   if (typeof window === 'undefined' || !isHydrated) {
     return false;
   }
@@ -212,15 +153,10 @@ export const useIsAuthenticated = () => {
   return isAuthenticated;
 };
 
-/**
- * Hook to get the current user
- * Returns null during SSR and initial hydration
- */
 export const useCurrentUser = () => {
   const user = useAuthStore((state) => state.user);
   const isHydrated = useAuthStore((state) => state.isHydrated);
 
-  // During SSR or before hydration, always return null
   if (typeof window === 'undefined' || !isHydrated) {
     return null;
   }

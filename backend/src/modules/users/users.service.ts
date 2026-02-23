@@ -5,9 +5,12 @@ import {
   InternalServerErrorException,
   BadRequestException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { UploadService, type FileInput } from '../../storage/upload.service.js';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { AvatarUploadResponseDto } from './dto/avatar-upload.dto.js';
 import { UserPublicProfileResponseDto } from './dto/user-profile.dto.js';
@@ -87,6 +90,8 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploadService: UploadService,
+    @Inject(forwardRef(() => AchievementProgressService))
+    private readonly achievementProgressService: AchievementProgressService,
   ) {}
 
   /**
@@ -947,6 +952,17 @@ export class UsersService {
 
       // 获取更新后的关注数
       const counts = await this.getFollowCounts(followingId);
+
+      // 追踪被关注用户的粉丝成就进度
+      // 需求24.5.1: 粉丝成就（初有粉丝→顶流达人）
+      try {
+        await this.achievementProgressService.trackFollowerCount(followingId, 1);
+      } catch (achievementError) {
+        // 成就追踪失败不影响关注操作
+        this.logger.warn(
+          `Failed to track follower achievement for user ${followingId}: ${achievementError}`,
+        );
+      }
 
       this.logger.log(`User ${followerId} followed user ${followingId}`);
 

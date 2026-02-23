@@ -6,7 +6,6 @@ import {
   IsInt,
   Min,
   Max,
-  IsUUID,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { MemberLevel } from '@prisma/client';

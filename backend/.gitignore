@@ -6,6 +6,12 @@ dist
 .env.local
 !.env.example
 
+# Data files (epubs, covers, etc.)
+data/epubs/
+data/covers/
+data/*.json
+data/merged.csv
+
 # Prisma
 /generated/prisma
 

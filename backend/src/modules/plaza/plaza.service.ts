@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../redis/cache.service';
+import { AchievementProgressService } from '../achievement/achievement-progress.service';
 import {
   CreateCardDto,
   UpdateCardDto,
@@ -19,18 +20,22 @@ export class PlazaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
+    private readonly achievementProgressService: AchievementProgressService,
   ) {}
 
   // ==================== Card CRUD ====================
 
   /**
    * 创建 Card
+   * 
+   * 需求24.4.4: 当用户内容被引用时，更新作者的被引用成就进度
    */
   async createCard(authorId: string, dto: CreateCardDto) {
     const { content, quoteAnchorId } = dto;
 
     // 如果有引用，验证段落是否存在
     let quote = null;
+    let quotedAuthorId: string | null = null;
     if (quoteAnchorId) {
       const paragraph = await this.prisma.paragraph.findUnique({
         where: { anchorId: quoteAnchorId },
@@ -51,6 +56,9 @@ export class PlazaService {
         paragraphId: paragraph.id,
         originalContent: paragraph.content,
       };
+      
+      // 记录被引用内容的作者ID，用于更新成就
+      quotedAuthorId = paragraph.chapter.work.authorId;
     }
 
     // 创建 Card
@@ -103,6 +111,16 @@ export class PlazaService {
         where: { id: quote.paragraphId },
         data: { quoteCount: { increment: 1 } },
       });
+      
+      // 需求24.4.4: 更新被引用作者的成就进度（金句初现→名言制造机）
+      // 只有当引用的是其他用户的内容时才更新成就（不能自己引用自己）
+      if (quotedAuthorId && quotedAuthorId !== authorId) {
+        // 异步更新成就，不阻塞主流程
+        this.achievementProgressService.trackBeingQuoted(quotedAuthorId, 1).catch((error) => {
+          // 成就更新失败不影响主流程，只记录日志
+          console.error(`Failed to track being quoted achievement for author ${quotedAuthorId}:`, error);
+        });
+      }
     }
 
     // 清除信息流缓存

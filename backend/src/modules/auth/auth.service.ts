@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto.js';
 import { EmailVerificationService } from './email-verification.service.js';
 import { SessionService } from '../../redis/session.service.js';
 import { DeviceFingerprintService } from './device-fingerprint.service.js';
+import { AchievementProgressService } from '../achievement/achievement-progress.service.js';
 
 /**
  * 注册响应接口
@@ -98,6 +99,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly sessionService: SessionService,
     private readonly deviceFingerprintService: DeviceFingerprintService,
+    private readonly achievementProgressService: AchievementProgressService,
   ) {
     // bcrypt cost factor >= 12 (NFR-3 安全要求)
     this.bcryptCostFactor = 12;
@@ -241,9 +243,7 @@ export class AuthService {
     const user: UserData | null = await (this.prisma as any).user.findUnique({
       where: { email: normalizedEmail },
       include: {
-        profile: {
-          select: { avatar: true },
-        },
+        profile: true,
       },
     });
 
@@ -328,6 +328,17 @@ export class AuthService {
     );
 
     this.logger.log(`User logged in successfully: ${user.id}`);
+
+    // 需求24.6.1: 元老用户成就（账户年龄追踪）
+    // 在用户登录时检查账户年龄并更新成就进度
+    try {
+      await this.achievementProgressService.trackAccountAge(user.id);
+    } catch (achievementError) {
+      // 成就更新失败不应影响登录流程
+      this.logger.warn(
+        `Failed to update account age achievement progress: ${achievementError}`,
+      );
+    }
 
     // 构建响应
     const response: LoginResponse = {

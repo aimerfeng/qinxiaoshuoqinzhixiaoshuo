@@ -7,7 +7,6 @@ import {
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
-import { createSoftDeleteMiddleware } from './soft-delete.middleware.js';
 
 /**
  * 连接池配置接口
@@ -106,8 +105,8 @@ export class PrismaService
       this.pgPool = undefined;
     }
 
-    // 注册软删除中间件
-    this.$use(createSoftDeleteMiddleware());
+    // 注意：Prisma 7.x 移除了 $use 中间件 API
+    // 软删除功能现在通过查询时显式添加 isDeleted: false 条件来实现
   }
 
   async onModuleInit() {
@@ -117,7 +116,7 @@ export class PrismaService
       this.logger.log(
         `Database connection established (Pool: min=${config.min}, max=${config.max}, idleTimeout=${config.idleTimeoutMillis}ms)`,
       );
-    } catch (error) {
+    } catch {
       this.logger.warn('Database connection failed - running without database');
     }
   }

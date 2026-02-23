@@ -4,16 +4,19 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LikeTargetType } from '@prisma/client';
 import { CreateCommentDto, UpdateCommentDto, CardQueryDto } from './dto';
 import { HotScoreService } from './hot-score.service';
+import { AchievementEventType } from '../achievement/achievement-unlock.service';
 
 @Injectable()
 export class CommentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hotScoreService: HotScoreService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -87,6 +90,14 @@ export class CommentService {
 
     // 更新热度分数
     await this.hotScoreService.updateCardHotScore(cardId);
+
+    // 触发互动成就事件（评论数追踪）
+    this.eventEmitter.emit(AchievementEventType.COMMENT_POSTED, {
+      userId,
+      eventType: AchievementEventType.COMMENT_POSTED,
+      value: 1,
+      metadata: { cardId, commentId: comment.id },
+    });
 
     return this.formatCommentResponse(comment, userId);
   }

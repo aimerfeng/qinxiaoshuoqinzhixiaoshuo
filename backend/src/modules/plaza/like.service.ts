@@ -6,12 +6,14 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { LikeTargetType } from '@prisma/client';
 import { HotScoreService } from './hot-score.service';
+import { AchievementProgressService } from '../achievement/achievement-progress.service';
 
 @Injectable()
 export class LikeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly hotScoreService: HotScoreService,
+    private readonly achievementProgressService: AchievementProgressService,
   ) {}
 
   /**
@@ -60,6 +62,14 @@ export class LikeService {
 
     // 更新热度分数
     await this.hotScoreService.updateCardHotScore(cardId);
+
+    // 追踪点赞成就（给予）- 点赞者
+    await this.achievementProgressService.trackLikesGiven(userId, 1);
+
+    // 追踪点赞成就（获得）- Card 作者
+    if (card.authorId !== userId) {
+      await this.achievementProgressService.trackLikesReceived(card.authorId, 1);
+    }
 
     return {
       message: '点赞成功',
@@ -159,6 +169,14 @@ export class LikeService {
       where: { id: commentId },
       data: { likeCount: { increment: 1 } },
     });
+
+    // 追踪点赞成就（给予）- 点赞者
+    await this.achievementProgressService.trackLikesGiven(userId, 1);
+
+    // 追踪点赞成就（获得）- 评论作者
+    if (comment.authorId !== userId) {
+      await this.achievementProgressService.trackLikesReceived(comment.authorId, 1);
+    }
 
     return {
       message: '点赞成功',

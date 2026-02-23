@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ReadingListController } from './reading-list.controller';
 import { ReadingListService } from './reading-list.service';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module.js';
 
 /**
  * 阅读列表模块
@@ -12,7 +13,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
  * - 12.1.3 更新提醒逻辑
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [ReadingListController],
   providers: [ReadingListService],
   exports: [ReadingListService],

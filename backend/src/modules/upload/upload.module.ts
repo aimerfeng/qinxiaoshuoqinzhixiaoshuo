@@ -8,6 +8,7 @@ import { MangaUploadController } from './manga-upload.controller.js';
 import { ArchiveParserService } from './archive-parser.service.js';
 import { PrismaModule } from '../../prisma/prisma.module.js';
 import { ParagraphsModule } from '../paragraphs/paragraphs.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 /**
  * 上传模块
@@ -23,7 +24,7 @@ import { ParagraphsModule } from '../paragraphs/paragraphs.module.js';
  * - Archive (ZIP/CBZ) parsing for manga uploads
  */
 @Module({
-  imports: [PrismaModule, forwardRef(() => ParagraphsModule)],
+  imports: [PrismaModule, forwardRef(() => ParagraphsModule), AuthModule],
   controllers: [MangaUploadController],
   providers: [
     NovelParserService,
