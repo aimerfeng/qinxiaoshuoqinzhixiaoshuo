@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -33,6 +35,11 @@ import { SeasonModule } from './modules/season/season.module.js';
 import { LimitedEventModule } from './modules/limited-event/limited-event.module.js';
 import { Wenku8ProxyModule } from './modules/wenku8-proxy/wenku8-proxy.module.js';
 import { NovelCrawlerModule } from './modules/novel-crawler/novel-crawler.module.js';
+import { LibraryModule } from './modules/library/library.module.js';
+import { BranchModule } from './modules/branch/branch.module.js';
+import { SuggestionModule } from './modules/suggestion/suggestion.module.js';
+import { RevenueModule } from './modules/revenue/revenue.module.js';
+import { HotScoreModule } from './modules/hot-score/hot-score.module.js';
 import {
   appConfig,
   databaseConfig,
@@ -50,6 +57,13 @@ import {
       load: [appConfig, databaseConfig, jwtConfig, redisConfig, storageConfig, sensitiveWordConfig],
       envFilePath: ['.env.local', '.env'],
       validate,
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'data'),
+      serveRoot: '/data',
+      serveStaticOptions: {
+        index: false,
+      },
     }),
     EventEmitterModule.forRoot(),
     PrismaModule,
@@ -82,6 +96,11 @@ import {
     LimitedEventModule,
     Wenku8ProxyModule,
     NovelCrawlerModule,
+    LibraryModule,
+    BranchModule,
+    SuggestionModule,
+    RevenueModule,
+    HotScoreModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,7 +4,7 @@
  * 需求4: 沉浸式阅读器
  */
 
-import { api } from '@/lib/api';
+import { apiRequest } from '@/lib/api';
 import type {
   ChapterContentResponse,
   ChapterListResponse,
@@ -23,10 +23,10 @@ export async function getChapterContent(
   workId: string,
   chapterId: string
 ): Promise<ChapterContentResponse> {
-  const response = await api.get<ChapterContentResponse>(
+  return apiRequest<ChapterContentResponse>(
+    'get',
     `/reader/works/${workId}/chapters/${chapterId}`
   );
-  return response.data;
 }
 
 /**
@@ -34,8 +34,7 @@ export async function getChapterContent(
  * GET /api/v1/reader/works/:workId/chapters
  */
 export async function getChapterList(workId: string): Promise<ChapterListResponse> {
-  const response = await api.get<ChapterListResponse>(`/reader/works/${workId}/chapters`);
-  return response.data;
+  return apiRequest<ChapterListResponse>('get', `/reader/works/${workId}/chapters`);
 }
 
 /**
@@ -46,10 +45,10 @@ export async function getAdjacentChapters(
   workId: string,
   chapterId: string
 ): Promise<AdjacentChaptersResponse> {
-  const response = await api.get<AdjacentChaptersResponse>(
+  return apiRequest<AdjacentChaptersResponse>(
+    'get',
     `/reader/works/${workId}/chapters/${chapterId}/adjacent`
   );
-  return response.data;
 }
 
 /**
@@ -60,8 +59,7 @@ export async function saveReadingProgress(
   workId: string,
   data: SaveProgressRequest
 ): Promise<SaveProgressResponse> {
-  const response = await api.post<SaveProgressResponse>(`/reader/works/${workId}/progress`, data);
-  return response.data;
+  return apiRequest<SaveProgressResponse>('post', `/reader/works/${workId}/progress`, data);
 }
 
 /**
@@ -69,8 +67,7 @@ export async function saveReadingProgress(
  * GET /api/v1/reader/settings
  */
 export async function getReadingSettings(): Promise<ReadingSettingsResponse> {
-  const response = await api.get<ReadingSettingsResponse>('/reader/settings');
-  return response.data;
+  return apiRequest<ReadingSettingsResponse>('get', '/reader/settings');
 }
 
 /**
@@ -80,7 +77,7 @@ export async function getReadingSettings(): Promise<ReadingSettingsResponse> {
 export async function saveReadingSettings(
   settings: Partial<ReaderSettings>
 ): Promise<ReadingSettingsResponse> {
-  const response = await api.patch<ReadingSettingsResponse>('/reader/settings', {
+  return apiRequest<ReadingSettingsResponse>('patch', '/reader/settings', {
     fontSize: settings.fontSize,
     lineHeight: settings.lineHeight,
     fontFamily: settings.fontFamily,
@@ -89,7 +86,6 @@ export async function saveReadingSettings(
     pageMode: settings.readingMode,
     nightMode: settings.nightMode,
   });
-  return response.data;
 }
 
 /**
@@ -100,10 +96,10 @@ export async function getWenku8ChapterContent(
   novelId: string,
   chapterId: string
 ): Promise<ChapterContentResponse> {
-  const response = await api.get<ChapterContentResponse>(
+  return apiRequest<ChapterContentResponse>(
+    'get',
     `/reader/wenku8/${novelId}/chapters/${chapterId}`
   );
-  return response.data;
 }
 
 /**
@@ -111,6 +107,5 @@ export async function getWenku8ChapterContent(
  * GET /api/v1/reader/wenku8/:novelId/chapters
  */
 export async function getWenku8ChapterList(novelId: string): Promise<ChapterListResponse> {
-  const response = await api.get<ChapterListResponse>(`/reader/wenku8/${novelId}/chapters`);
-  return response.data;
+  return apiRequest<ChapterListResponse>('get', `/reader/wenku8/${novelId}/chapters`);
 }

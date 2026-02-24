@@ -148,9 +148,9 @@ export function NovelReader({ workId, chapterId, anchorId }: NovelReaderProps) {
 
   // 处理滚动进度
   const handleScroll = useCallback(() => {
-    if (!contentRef.current) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const scrollHeight = document.documentElement.scrollHeight;
+    const clientHeight = window.innerHeight;
     const progress =
       scrollHeight > clientHeight ? (scrollTop / (scrollHeight - clientHeight)) * 100 : 0;
     setScrollProgress(Math.min(100, Math.max(0, progress)));
@@ -159,19 +159,18 @@ export function NovelReader({ workId, chapterId, anchorId }: NovelReaderProps) {
   // 翻页导航
   const handlePageNavigation = useCallback(
     (direction: 'next' | 'prev') => {
-      if (!contentRef.current || settings.readingMode !== 'page') return;
+      if (settings.readingMode !== 'page') return;
 
-      const container = contentRef.current;
-      const pageHeight = container.clientHeight;
-      const currentScroll = container.scrollTop;
+      const pageHeight = window.innerHeight;
+      const currentScroll = window.scrollY;
 
       if (direction === 'next') {
-        container.scrollTo({
+        window.scrollTo({
           top: currentScroll + pageHeight * 0.9,
           behavior: 'smooth',
         });
       } else {
-        container.scrollTo({
+        window.scrollTo({
           top: currentScroll - pageHeight * 0.9,
           behavior: 'smooth',
         });
@@ -249,13 +248,12 @@ export function NovelReader({ workId, chapterId, anchorId }: NovelReaderProps) {
     [ui.isSettingsPanelOpen, ui.isChapterListOpen, closeAllPanels]
   );
 
-  // 监听滚动
+  // 监听滚动 - 改为监听 window
   useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-
-    content.addEventListener('scroll', handleScroll);
-    return () => content.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll);
+    // 初始化时也计算一次
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
   // 应用夜间模式
@@ -272,7 +270,7 @@ export function NovelReader({ workId, chapterId, anchorId }: NovelReaderProps) {
     default: 'bg-background',
     sepia: 'bg-amber-50 dark:bg-amber-950',
     dark: 'bg-slate-900',
-    green: 'bg-emerald-50 dark:bg-emerald-950',
+    green: 'bg-teal-50 dark:bg-teal-950',
   };
 
   // 页面宽度样式

@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { apiRequest } from '@/lib/api';
 import type {
   ReadingListItem,
   ReadingListResponse,
@@ -8,13 +8,8 @@ import type {
 
 /**
  * 阅读列表服务
- *
- * 需求12: 阅读列表管理前端 API 调用
  */
 export const readingListService = {
-  /**
-   * 获取阅读列表
-   */
   async getList(params?: ReadingListQueryParams): Promise<ReadingListResponse> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set('status', params.status);
@@ -26,60 +21,27 @@ export const readingListService = {
 
     const query = searchParams.toString();
     const url = query ? `/reading-list?${query}` : '/reading-list';
-    return api.get<ReadingListResponse>(url);
+    return apiRequest<ReadingListResponse>('get', url);
   },
 
-  /**
-   * 检查作品是否在阅读列表中
-   */
   async checkInList(workId: string): Promise<{ inList: boolean; item?: ReadingListItem }> {
-    return api.get<{ inList: boolean; item?: ReadingListItem }>(`/reading-list/check/${workId}`);
+    return apiRequest<{ inList: boolean; item?: ReadingListItem }>('get', `/reading-list/check/${workId}`);
   },
 
-  /**
-   * 添加到阅读列表
-   */
-  async addToList(
-    workId: string,
-    status?: ReadingListStatus,
-    note?: string,
-  ): Promise<ReadingListItem> {
-    return api.post<ReadingListItem>('/reading-list', { workId, status, note });
+  async addToList(workId: string, status?: ReadingListStatus, note?: string): Promise<ReadingListItem> {
+    return apiRequest<ReadingListItem>('post', '/reading-list', { workId, status, note });
   },
 
-  /**
-   * 更新阅读列表项
-   */
-  async updateItem(
-    itemId: string,
-    data: {
-      status?: ReadingListStatus;
-      note?: string;
-      rating?: number;
-      hasUpdate?: boolean;
-    },
-  ): Promise<ReadingListItem> {
-    return api.patch<ReadingListItem>(`/reading-list/${itemId}`, data);
+  async updateItem(itemId: string, data: { status?: ReadingListStatus; note?: string; rating?: number; hasUpdate?: boolean }): Promise<ReadingListItem> {
+    return apiRequest<ReadingListItem>('patch', `/reading-list/${itemId}`, data);
   },
 
-  /**
-   * 从阅读列表移除
-   */
   async removeFromList(itemId: string): Promise<{ success: boolean }> {
-    return api.delete<{ success: boolean }>(`/reading-list/${itemId}`);
+    return apiRequest<{ success: boolean }>('delete', `/reading-list/${itemId}`);
   },
 
-  /**
-   * 批量更新
-   */
-  async batchUpdate(
-    itemIds: string[],
-    data: { status?: ReadingListStatus; markAsRead?: boolean },
-  ): Promise<{ success: boolean; count: number }> {
-    return api.post<{ success: boolean; count: number }>('/reading-list/batch-update', {
-      itemIds,
-      ...data,
-    });
+  async batchUpdate(itemIds: string[], data: { status?: ReadingListStatus; markAsRead?: boolean }): Promise<{ success: boolean; count: number }> {
+    return apiRequest<{ success: boolean; count: number }>('post', '/reading-list/batch-update', { itemIds, ...data });
   },
 };
 

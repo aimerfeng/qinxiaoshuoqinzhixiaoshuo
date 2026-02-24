@@ -417,14 +417,13 @@ export class BatchImportService {
       },
     );
 
-    // If chapter is published, create paragraphs and anchors
-    if (status === ChapterStatus.PUBLISHED) {
-      await this.paragraphsService.createParagraphsForChapter(
-        workId,
-        chapter.id,
-        content,
-      );
-    }
+    // Always create paragraphs for the chapter (regardless of status)
+    // This ensures imported chapters can be read even in DRAFT status
+    await this.paragraphsService.createParagraphsForChapter(
+      workId,
+      chapter.id,
+      content,
+    );
 
     return {
       id: chapter.id,

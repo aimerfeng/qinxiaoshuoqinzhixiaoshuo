@@ -114,11 +114,15 @@ export class S3Service implements OnModuleInit, OnModuleDestroy {
           this.logger.log(`Bucket "${this.bucket}" created successfully`);
         } catch (createError) {
           this.logger.error(`Failed to create bucket: ${createError}`);
-          throw createError;
+          // 在开发模式下不抛出错误，允许应用继续启动
+          this.isConfigured = false;
+          this.logger.warn('S3 storage disabled due to connection failure');
         }
       } else {
         this.logger.error(`Failed to check bucket: ${error}`);
-        throw error;
+        // 在开发模式下不抛出错误，允许应用继续启动
+        this.isConfigured = false;
+        this.logger.warn('S3 storage disabled due to connection failure');
       }
     }
   }

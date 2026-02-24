@@ -39,12 +39,17 @@ export function QuoteModal({ paragraph, onClose }: QuoteModalProps) {
 
       // 创建 Card 并关联引用
       // 后端 PlazaService.createCard 会自动创建 Quote 记录
+      // 如果用户没有输入评论，使用默认的引用文本
+      const cardContent = quoteComment.trim() || `📖 ${paragraph.content.slice(0, 100)}${paragraph.content.length > 100 ? '...' : ''}`;
       return plazaService.createCard({
-        content: quoteComment || '',
+        content: cardContent,
         quoteAnchorId: paragraph.anchorId,
       });
     },
     onSuccess: (card) => {
+      // 重置提交状态
+      setSubmitting(false);
+      
       // 刷新广场数据
       queryClient.invalidateQueries({ queryKey: ['plaza', 'feed'] });
       

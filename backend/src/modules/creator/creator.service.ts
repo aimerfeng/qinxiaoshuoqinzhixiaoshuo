@@ -67,7 +67,10 @@ export class CreatorService {
   private async getCreatorWorks(userId: string): Promise<WorkBriefDto[]> {
     const works = await this.prisma.work.findMany({
       where: {
-        authorId: userId,
+        OR: [
+          { authorId: userId },
+          { uploaderId: userId },
+        ],
         isDeleted: false,
       },
       include: {

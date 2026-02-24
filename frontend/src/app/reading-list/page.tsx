@@ -194,7 +194,7 @@ export default function ReadingListPage() {
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
             </div>
-          ) : !data?.items.length ? (
+          ) : !data?.items?.length ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-500">
               <BookOpen className="w-16 h-16 mb-4 text-gray-300" />
               <p className="text-lg font-medium">书架空空如也</p>
@@ -208,7 +208,7 @@ export default function ReadingListPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {data.items.map((item) => (
+              {data?.items?.map((item) => (
                 <ReadingListItemCard
                   key={item.id}
                   item={item}

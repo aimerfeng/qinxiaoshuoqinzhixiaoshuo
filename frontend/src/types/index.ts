@@ -136,3 +136,6 @@ export * from './onboarding';
 
 // Re-export season types
 export * from './season';
+
+// Re-export library types
+export * from './library';

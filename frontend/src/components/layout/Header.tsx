@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, BookOpen, Menu, X, Library } from 'lucide-react';
+import { Home, Compass, BookOpen, Menu, X, Library, GitBranch } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/utils/cn';
@@ -20,6 +20,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/', label: '首页', icon: <Home className="w-5 h-5" /> },
   { href: '/plaza', label: '广场', icon: <Compass className="w-5 h-5" /> },
+  { href: '/libraries', label: '创作库', icon: <GitBranch className="w-5 h-5" /> },
   { href: '/wenku8', label: '文库', icon: <Library className="w-5 h-5" /> },
   { href: '/reading-list', label: '书架', icon: <BookOpen className="w-5 h-5" /> },
 ];

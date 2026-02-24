@@ -37,11 +37,11 @@ import { CounterCacheService } from './counter-cache.service.js';
             maxRetriesPerRequest: 3,
             // 重连策略
             retryStrategy: (times: number) => {
-              if (times > 10) {
-                logger.error('Redis connection failed after 10 retries');
-                return null; // 停止重试
+              if (times > 3) {
+                logger.error('Redis connection failed after 3 retries, continuing without Redis');
+                return null; // 停止重试，允许应用继续
               }
-              const delay = Math.min(times * 100, 3000);
+              const delay = Math.min(times * 100, 1000);
               logger.warn(
                 `Redis reconnecting in ${delay}ms (attempt ${times})`,
               );

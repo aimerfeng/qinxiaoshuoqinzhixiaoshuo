@@ -84,9 +84,9 @@ const config: Config = {
         ring: 'var(--ring)',
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif)', 'Georgia', 'serif'],
-        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        serif: ['Noto Serif SC', 'Source Han Serif SC', 'SimSun', 'STSong', 'Georgia', 'serif'],
+        display: ['ZCOOL KuaiLe', 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'cursive', 'system-ui'],
       },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.75rem' }],

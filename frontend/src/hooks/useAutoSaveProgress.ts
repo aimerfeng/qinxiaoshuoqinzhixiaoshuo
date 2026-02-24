@@ -26,7 +26,7 @@ export function useAutoSaveProgress({
   chapterId,
   scrollProgress,
   enabled = true,
-  debounceMs = 3000,
+  debounceMs = 10000,
 }: UseAutoSaveProgressOptions) {
   const { isAuthenticated } = useAuthStore();
   const { saveProgress: saveLocalProgress } = useReadingStore();
@@ -84,8 +84,8 @@ export function useAutoSaveProgress({
   useEffect(() => {
     if (!enabled) return;
 
-    // 只有当进度变化超过 5% 时才保存
-    if (Math.abs(scrollProgress - lastSavedProgress.current) < 5) {
+    // 只有当进度变化超过 10% 时才保存
+    if (Math.abs(scrollProgress - lastSavedProgress.current) < 10) {
       return;
     }
 

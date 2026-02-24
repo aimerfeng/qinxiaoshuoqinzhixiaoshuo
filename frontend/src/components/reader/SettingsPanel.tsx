@@ -60,7 +60,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     { value: 'default', label: '默认', color: 'bg-background' },
     { value: 'sepia', label: '护眼', color: 'bg-amber-50' },
     { value: 'dark', label: '夜间', color: 'bg-slate-900' },
-    { value: 'green', label: '绿色', color: 'bg-emerald-50' },
+    { value: 'green', label: '绿色', color: 'bg-teal-50' },
   ] as const;
 
   const fontOptions = [

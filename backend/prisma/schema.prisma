@@ -92,6 +92,12 @@ model User {
   seasonRanks        SeasonRank[]
   seasonLeaderboards SeasonLeaderboard[]
 
+  // 小说库分支系统关系
+  libraries          Library[]
+  branches           LibraryBranch[]
+  suggestions        ContentSuggestion[]
+  branchTransactions BranchTransaction[]
+
   @@index([memberLevel])
   @@map("users")
 }
@@ -160,6 +166,7 @@ model DeviceFingerprint {
 model Work {
   id          String      @id @default(uuid())
   authorId    String      @map("author_id")
+  uploaderId  String?     @map("uploader_id") // 上传者ID（用于区分上传者和原作者）
   title       String
   description String?
   coverImage  String?     @map("cover_image")
@@ -184,8 +191,11 @@ model Work {
   tags             WorkTag[]
   readingListItems ReadingListItem[]
   completions      WorkCompletion[]
+  library          Library? // 作为小说库的原始作品
+  branch           LibraryBranch? // 作为分支的内容载体
 
   @@index([authorId])
+  @@index([uploaderId])
   @@index([status])
   @@index([contentType])
   @@map("works")
@@ -215,6 +225,7 @@ model Chapter {
   versions        ChapterVersion[]
   readingProgress ReadingProgress[]
   mangaPages      MangaPage[]
+  forkBranches    LibraryBranch[]   @relation("ForkFromChapter")
 
   @@unique([workId, orderIndex])
   @@index([workId])
@@ -276,8 +287,10 @@ model Paragraph {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  quotes  Quote[]
+  chapter      Chapter             @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  quotes       Quote[]
+  forkBranches LibraryBranch[]     @relation("ForkFromParagraph")
+  suggestions  ContentSuggestion[]
 
   @@unique([chapterId, orderIndex])
   @@index([anchorId])
@@ -299,10 +312,11 @@ model Card {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
-  author   User      @relation(fields: [authorId], references: [id])
-  quotes   Quote[]
-  comments Comment[]
-  likes    Like[]
+  author     User               @relation(fields: [authorId], references: [id])
+  quotes     Quote[]
+  comments   Comment[]
+  likes      Like[]
+  suggestion ContentSuggestion?
 
   @@index([authorId])
   @@index([hotScore])
@@ -734,6 +748,9 @@ enum ContributionType {
   // 社区贡献
   REPORT_VALID // 举报有效违规 +10
   ACTIVITY_PARTICIPATE // 参与官方活动 +15
+
+  // 建议贡献
+  SUGGESTION_ACCEPTED // 修订建议被采纳 +可配置
 }
 
 // 贡献度记录模型
@@ -1952,4 +1969,206 @@ model LimitedEventUserMilestoneProgress {
   @@index([isUnlocked])
   @@index([isClaimed])
   @@map("limited_event_user_milestone_progress")
+}
+
+// ==================== 小说库分支系统 (Library Branch System) ====================
+
+// 小说库类型
+enum LibraryType {
+  ORIGINAL // 原创库 - 仅库拥有者可发布正文主线
+  SHARED // 共享库 - 所有用户可上传分支
+}
+
+// 分支类型
+enum BranchType {
+  MAIN // 正文分支 - 原创内容或续写
+  DERIVATIVE // 改写分支 - 同人/IF线/改编
+  MANGA // 漫画分支 - 漫画改编版本
+}
+
+// 改写子类型
+enum DerivativeType {
+  FANFIC // 同人
+  IF_LINE // IF线
+  ADAPTATION // 改编
+}
+
+// 上传费用类型
+enum UploadFeeType {
+  PER_THOUSAND_WORDS // 按千字计费
+  PER_PAGE // 按页数计费（漫画用）
+}
+
+// 修订建议类型
+enum SuggestionType {
+  MODIFY // 修改段落内容
+  INSERT_BEFORE // 在段落前插入
+  INSERT_AFTER // 在段落后插入
+  ADD_IMAGE // 添加插图
+}
+
+// 修订建议状态
+enum SuggestionStatus {
+  PENDING // 待审核
+  ACCEPTED // 已采纳
+  REJECTED // 已拒绝
+}
+
+// 分支交易类型
+enum BranchTransactionType {
+  UPLOAD_FEE // 上传费用
+  TIP // 打赏
+}
+
+// 小说库模型
+model Library {
+  id          String      @id @default(uuid())
+  ownerId     String      @map("owner_id")
+  workId      String      @unique @map("work_id") // 关联原始作品
+  title       String
+  description String?
+  coverImage  String?     @map("cover_image")
+  libraryType LibraryType @default(ORIGINAL) @map("library_type")
+
+  // 收益设置
+  ownerCutPercent Int           @default(0) @map("owner_cut_percent") // 0-30%
+  uploadFeeType   UploadFeeType @default(PER_THOUSAND_WORDS) @map("upload_fee_type")
+  uploadFeeRate   Int           @default(0) @map("upload_fee_rate") // 费率（分/千字 或 分/页）
+
+  // 统计
+  hotScore       Float @default(0) @map("hot_score")
+  branchCount    Int   @default(0) @map("branch_count")
+  totalTipAmount Int   @default(0) @map("total_tip_amount")
+
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner    User            @relation(fields: [ownerId], references: [id])
+  work     Work            @relation(fields: [workId], references: [id])
+  branches LibraryBranch[]
+
+  @@index([ownerId])
+  @@index([libraryType])
+  @@index([hotScore(sort: Desc)])
+  @@index([createdAt])
+  @@map("libraries")
+}
+
+// 小说库分支模型
+model LibraryBranch {
+  id        String @id @default(uuid())
+  libraryId String @map("library_id")
+  creatorId String @map("creator_id")
+  workId    String @unique @map("work_id") // 分支内容作为独立作品存储
+
+  branchType     BranchType      @map("branch_type")
+  derivativeType DerivativeType? @map("derivative_type") // 仅 DERIVATIVE 类型使用
+
+  // 分支点
+  forkFromChapterId   String? @map("fork_from_chapter_id")
+  forkFromParagraphId String? @map("fork_from_paragraph_id")
+
+  // 统计
+  likeCount Int   @default(0) @map("like_count")
+  tipAmount Int   @default(0) @map("tip_amount")
+  viewCount Int   @default(0) @map("view_count")
+  hotScore  Float @default(0) @map("hot_score")
+
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  library           Library    @relation(fields: [libraryId], references: [id])
+  creator           User       @relation(fields: [creatorId], references: [id])
+  work              Work       @relation(fields: [workId], references: [id])
+  forkFromChapter   Chapter?   @relation("ForkFromChapter", fields: [forkFromChapterId], references: [id])
+  forkFromParagraph Paragraph? @relation("ForkFromParagraph", fields: [forkFromParagraphId], references: [id])
+
+  suggestions  ContentSuggestion[]
+  transactions BranchTransaction[]
+
+  @@index([libraryId])
+  @@index([creatorId])
+  @@index([branchType])
+  @@index([hotScore(sort: Desc)])
+  @@index([libraryId, branchType])
+  @@map("library_branches")
+}
+
+// 修订建议模型
+model ContentSuggestion {
+  id          String @id @default(uuid())
+  branchId    String @map("branch_id")
+  paragraphId String @map("paragraph_id")
+  suggesterId String @map("suggester_id")
+
+  suggestionType SuggestionType   @map("suggestion_type")
+  status         SuggestionStatus @default(PENDING)
+
+  // 建议内容
+  suggestedContent String? @map("suggested_content")
+  imageUrl         String? @map("image_url") // ADD_IMAGE 类型使用
+
+  // 奖励
+  rewardAmount Int @default(0) @map("reward_amount")
+
+  // 审核信息
+  reviewedAt DateTime? @map("reviewed_at")
+  reviewNote String?   @map("review_note")
+
+  // 采纳后生成的卡片
+  cardId String? @unique @map("card_id")
+
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  branch    LibraryBranch @relation(fields: [branchId], references: [id])
+  paragraph Paragraph     @relation(fields: [paragraphId], references: [id])
+  suggester User          @relation(fields: [suggesterId], references: [id])
+  card      Card?         @relation(fields: [cardId], references: [id])
+
+  @@index([branchId])
+  @@index([paragraphId])
+  @@index([suggesterId])
+  @@index([status])
+  @@index([branchId, status])
+  @@map("content_suggestions")
+}
+
+// 分支交易模型
+model BranchTransaction {
+  id              String                @id @default(uuid())
+  branchId        String                @map("branch_id")
+  userId          String                @map("user_id") // 交易发起者
+  transactionType BranchTransactionType @map("transaction_type")
+
+  // 金额明细
+  totalAmount    Int @map("total_amount")
+  platformAmount Int @map("platform_amount") // 平台收入
+  ownerAmount    Int @map("owner_amount") // 库拥有者收入
+  creatorAmount  Int @map("creator_amount") // 分支创作者收入
+
+  // 关联的钱包交易ID
+  platformTransactionId String? @map("platform_transaction_id")
+  ownerTransactionId    String? @map("owner_transaction_id")
+  creatorTransactionId  String? @map("creator_transaction_id")
+  userTransactionId     String? @map("user_transaction_id") // 用户支出交易
+
+  message   String? // 打赏留言
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  branch LibraryBranch @relation(fields: [branchId], references: [id])
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@index([branchId])
+  @@index([userId])
+  @@index([transactionType])
+  @@index([createdAt])
+  @@map("branch_transactions")
 }

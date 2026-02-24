@@ -1,3 +1,6 @@
+/* Google Fonts 导入 - 宋体和艺术字体 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=ZCOOL+KuaiLe&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +8,10 @@
 @layer base {
   /* 星空幻想主题 (默认 - Light Mode) */
   :root {
+    /* Font families */
+    --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', Georgia, serif;
+    --font-display: 'ZCOOL KuaiLe', 'Ma Shan Zheng', cursive, system-ui;
+
     /* Primary colors */
     --color-primary: #6366f1;
     --color-primary-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);

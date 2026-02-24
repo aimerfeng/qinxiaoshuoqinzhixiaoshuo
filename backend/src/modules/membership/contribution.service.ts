@@ -45,6 +45,13 @@ export const CONTRIBUTION_CONFIG: Record<
     dailyLimit: null,
     description: '参与官方活动',
   },
+
+  // 建议贡献
+  SUGGESTION_ACCEPTED: {
+    points: 0, // 积分由审核者决定
+    dailyLimit: null,
+    description: '修订建议被采纳',
+  },
 };
 
 /**

@@ -81,6 +81,7 @@ export class WorksService {
         const newWork = await tx.work.create({
           data: {
             authorId,
+            uploaderId: authorId, // 默认上传者为作者本人
             title,
             description: description || null,
             contentType: type,

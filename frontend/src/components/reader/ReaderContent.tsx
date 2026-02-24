@@ -101,7 +101,11 @@ export function ReaderContent({ paragraphs, content, settings, onQuote, highligh
   }
 
   return (
-    <article className={cn('relative', fontFamilyClass)}>
+    <article className={cn(
+      'relative',
+      fontFamilyClass,
+      settings.showParagraphNumbers && 'pl-10'
+    )}>
       {/* 段落列表 */}
       <div
         className="space-y-0"

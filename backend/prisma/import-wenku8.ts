@@ -1,6 +1,6 @@
 /**
- * Wenku8 ��������ű�
- * ʹ��: npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/import-wenku8.ts [command]
+ * Wenku8 ��������ű�
+ * ʹ��: npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/import-wenku8.ts [command]
  */
 import { PrismaClient, WorkStatus, ChapterStatus, ContentType } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -107,9 +107,11 @@ async function downloadEpubs(novels: NovelEntry[], progress: ImportProgress): Pr
 async function parseEpub(filePath: string): Promise<{ title: string; author: string; cover?: Buffer; chapters: { title: string; content: string }[] } | null> {
   try {
     const EPub = require('epub2').default;
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const epub = new EPub(filePath);
-      epub.on('error', reject);
+      let hasError = false;
+      // 不要因为解析错误就 reject，很多 epub 即使有错误也能读取内容
+      epub.on('error', () => { hasError = true; });
       epub.on('end', async () => {
         try {
           const result: any = { title: epub.metadata?.title || path.basename(filePath, '.epub'), author: epub.metadata?.creator || 'Unknown', chapters: [] };
@@ -126,8 +128,13 @@ async function parseEpub(filePath: string): Promise<{ title: string; author: str
               if (clean.length > 100) result.chapters.push({ title: item.title || `Chapter ${result.chapters.length + 1}`, content: clean });
             } catch {}
           }
-          resolve(result);
-        } catch (err) { reject(err); }
+          // 即使有解析错误，只要能提取到章节就算成功
+          if (result.chapters.length > 0) {
+            resolve(result);
+          } else {
+            resolve(null);
+          }
+        } catch { resolve(null); }
       });
       epub.parse();
     });

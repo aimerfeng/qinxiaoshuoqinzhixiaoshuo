@@ -127,10 +127,10 @@ export function ParagraphRenderer({
       {/* 段落序号 */}
       {showNumber && !isImageParagraph && (
         <span className={cn(
-          'absolute -left-8 top-0 text-xs transition-opacity',
+          'absolute -left-8 top-0 text-xs',
           isSelected 
-            ? 'text-primary opacity-100' 
-            : 'text-muted-foreground opacity-0 group-hover:opacity-100'
+            ? 'text-primary' 
+            : 'text-muted-foreground'
         )}>
           {index + 1}
         </span>

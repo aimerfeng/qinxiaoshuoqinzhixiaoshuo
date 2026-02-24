@@ -1,13 +1,15 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as path from 'path';
 import { AppModule } from './app.module.js';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 3001);
@@ -16,6 +18,11 @@ async function bootstrap() {
     'app.frontendUrl',
     'http://localhost:3000',
   );
+
+  // Static file serving for cover images - must be before setGlobalPrefix
+  app.useStaticAssets(path.join(__dirname, '..', 'data'), {
+    prefix: '/data/',
+  });
 
   // Global prefix
   app.setGlobalPrefix(apiPrefix);
