@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -137,7 +137,7 @@ export default function LibrariesPage() {
   const router = useRouter();
 
   // 视图模式状态
-  const [viewMode, setViewMode] = useState<ViewMode>('libraries');
+  const [viewMode, setViewMode] = useState<ViewMode>('works');
 
   // 创作库状态
   const [libraries, setLibraries] = useState<Library[]>([]);
